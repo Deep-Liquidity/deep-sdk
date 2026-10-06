@@ -1,0 +1,46 @@
+{
+  "name": "@deepliquidity/curve-math",
+  "version": "0.1.0",
+  "description": "Deterministic integer (BigInt) math for the DEEP bonding curve (deep-curve) and DeepSwap constant-product quotes. Mirrors the on-chain Rust bit for bit.",
+  "license": "MIT",
+  "keywords": [
+    "solana",
+    "deep",
+    "bonding-curve",
+    "bigint",
+    "amm",
+    "math"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Deep-Liquidity/deep-sdk.git",
+    "directory": "packages/curve-math"
+  },
+  "homepage": "https://github.com/Deep-Liquidity/deep-sdk/tree/main/packages/curve-math",
+  "bugs": {
+    "url": "https://github.com/Deep-Liquidity/deep-sdk/issues"
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "name": "@deepliquidity/sdk",
+  "version": "0.1.0",
+  "description": "TypeScript client for DEEP on Solana: deep-curve (launchpad bonding curve) and DeepSwap (deep-amm) PDAs, instruction builders, account and event decoders, and the programs IDLs.",
+  "license": "(MIT AND Apache-2.0)",
+  "keywords": [
+    "solana",
+    "deep",
+    "bonding-curve",
+    "launchpad",
+    "amm",
+    "cpmm",
+    "deepswap",
+    "sdk"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./creator-links": {
+      "types": "./dist/creator-links.d.ts",
+      "import": "./dist/creator-links.js",
+      "default": "./dist/creator-links.js"
+    },
+    "./idl/deep_curve.json": "./idl/deep_curve.json",
+    "./idl/deep_amm.json": "./idl/deep_amm.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "idl",
+    "examples",
+    "README.md",
+    "LICENSE",
+    "LICENSE-APACHE",
+    "NOTICE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@deepliquidity/curve-math": "^0.1.0",
+    "@noble/hashes": "^2.4.0",
+    "@solana/spl-token": "^0.4.15",
+    "@solana/web3.js": "^1.99.0",
+    "buffer": "^6.0.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Deep-Liquidity/deep-sdk.git",
+    "directory": "packages/sdk"
+  },
+  "homepage": "https://github.com/Deep-Liquidity/deep-sdk/tree/main/packages/sdk",
+  "bugs": {
+    "url": "https://github.com/Deep-Liquidity/deep-sdk/issues"
+  }
+}

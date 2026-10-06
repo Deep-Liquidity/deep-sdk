@@ -1,0 +1,33 @@
+DEEP SDK (TypeScript client for deep-curve and DeepSwap / deep-amm)
+Copyright the DEEP project contributors.
+
+Licensing: SPDX "MIT AND Apache-2.0".
+  - The files listed below port account layouts, PDA seeds, instruction encodings and integer
+    swap / liquidity / fee math of raydium-cp-swap. They are licensed under the Apache License,
+    Version 2.0 (see LICENSE-APACHE).
+  - Everything else in this package is licensed under the MIT License (see LICENSE).
+
+Upstream work:
+  raydium-cp-swap  https://github.com/raydium-io/raydium-cp-swap
+  commit b3187ae53a1b95a201f855a59024a12ca8f5b51a, directory programs/cp-swap
+  Copyright Raydium contributors, licensed under the Apache License, Version 2.0.
+  DeepSwap's on-chain program (programs/deep-amm in the DEEP repository) is a fork of that code;
+  programs/deep-amm/NOTICE there lists its modifications.
+
+Ported here (re-implemented in TypeScript; no upstream file is copied verbatim):
+  src/raydium-cpmm.ts     <- states/pool.rs, states/config.rs (PoolState / AmmConfig layouts),
+                             PDA seeds, curve/{calculator,constant_product,fees}.rs
+                             (swap_base_input quote), instructions/swap_base_input.rs (accounts)
+  src/cpmm-liquidity.ts   <- curve/constant_product.rs lp_tokens_to_trading_tokens,
+                             instructions/{deposit,withdraw}.rs (accounts and rounding)
+  src/cpmm-initialize.ts  <- instructions/initialize.rs (accounts, initial LP, lock amount)
+  src/cpmm-token2022.ts   <- utils/token.rs (supported mint extensions, transfer fee helpers),
+                             instructions/swap_base_input.rs (transfer-fee order of operations)
+  src/deep-amm.ts         <- instructions/admin/*.rs (accounts and args), states/
+                             creator_fee_share.rs, curve/fees.rs (creator fee split)
+  src/amm-events.ts       <- states/events.rs (SwapEvent layout)
+  src/pairs.ts            <- SwapEvent interpretation (amounts, fees, reserves after a swap)
+
+Changes: written from scratch in TypeScript with BigInt integer math; where upstream panics or
+unwraps, these functions throw. The Squads v4 decoders (src/squads.ts) are re-derived from the
+public account layouts, contain no Squads code and are MIT.

@@ -1,0 +1,1914 @@
+{
+  "address": "7czURwVLkQpcF1HVhhZU5GGzvPA8YniogZY1BhZHCDtA",
+  "metadata": {
+    "name": "deep_curve",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "DEEP bonding-curve launch program"
+  },
+  "instructions": [
+    {
+      "name": "accept_admin",
+      "docs": ["Two-step admin transfer, step 2 — must be signed by the proposed admin."],
+      "discriminator": [112, 42, 45, 90, 116, 181, 13, 170],
+      "accounts": [
+        {
+          "name": "pending_admin",
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "apply_config_update",
+      "docs": [
+        "Timelocked config change, step 2. PERMISSIONLESS: the params and eta were fixed",
+        "and published when queued, so anyone may execute once `now >= eta` (and before",
+        "eta + grace). The admin cannot time a known change opportunistically, and a",
+        "change everyone has been warned about cannot be withheld; the admin keeps",
+        "`cancel_config_update` as the veto."
+      ],
+      "discriminator": [211, 233, 51, 21, 33, 87, 209, 147],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        },
+        {
+          "name": "pending_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [112, 101, 110, 100, 105, 110, 103, 95, 99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "buy",
+      "docs": ["Buy with an exact SOL budget. Charges less if capped by remaining supply."],
+      "discriminator": [102, 6, 61, 18, 1, 218, 235, 234],
+      "accounts": [
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint",
+          "relations": ["curve"]
+        },
+        {
+          "name": "curve",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [99, 117, 114, 118, 101]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "curve"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28,
+                  180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19,
+                153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89
+              ]
+            }
+          }
+        },
+        {
+          "name": "user_token",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "user"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28,
+                  180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19,
+                153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "sol_in",
+          "type": "u64"
+        },
+        {
+          "name": "min_tokens_out",
+          "type": "u64"
+        },
+        {
+          "name": "deadline",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "cancel_config_update",
+      "docs": ["Admin veto for a queued config change (also the only way to drop a stale one)."],
+      "discriminator": [216, 180, 255, 207, 118, 146, 126, 89],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": ["config"]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        },
+        {
+          "name": "pending_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [112, 101, 110, 100, 105, 110, 103, 95, 99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "claim_creator_fees",
+      "discriminator": [0, 23, 125, 234, 156, 118, 134, 89],
+      "accounts": [
+        {
+          "name": "creator",
+          "writable": true,
+          "signer": true,
+          "relations": ["curve"]
+        },
+        {
+          "name": "curve",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [99, 117, 114, 118, 101]
+              },
+              {
+                "kind": "account",
+                "path": "curve.mint",
+                "account": "BondingCurve"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "create_token",
+      "docs": ["Creates a fixed-supply mint, its metadata, and the bonding curve that sells it."],
+      "discriminator": [84, 52, 204, 228, 24, 140, 234, 75],
+      "accounts": [
+        {
+          "name": "creator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "curve",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [99, 117, 114, 118, 101]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "curve"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28,
+                  180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19,
+                153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89
+              ]
+            }
+          }
+        },
+        {
+          "name": "metadata",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [109, 101, 116, 97, 100, 97, 116, 97]
+              },
+              {
+                "kind": "account",
+                "path": "token_metadata_program"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "token_metadata_program"
+            }
+          }
+        },
+        {
+          "name": "price_update",
+          "docs": [
+            "verification level, staleness and confidence are checked in the handler (only",
+            "when the launch fee is non-zero)."
+          ],
+          "address": "7UVimffxr9ow1uXYxsr4LHAcV58mLzhmwaeKvJ1pjLiE"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "token_metadata_program",
+          "address": "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "symbol",
+          "type": "string"
+        },
+        {
+          "name": "uri",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "graduate",
+      "docs": [
+        "Graduates a completed curve into a deep-amm (DeepSwap CPMM) pool, non-custodially:",
+        "the pool is created via CPI with `lp_sol` (as WSOL) and `lp_tokens` from",
+        "`math::graduation_allocation`, every LP token received is burned (permanent",
+        "lock), and reserve tokens not needed for the pool are burned. The pool is created",
+        "through deep-amm `initialize_with_permission`, so it charges the AmmConfig's",
+        "creator fee, records the TOKEN's creator as its `pool_creator` (who can collect",
+        "their share) and takes that fee in SOL on both trade directions. The migration",
+        "authority only triggers it and never holds funds. Pool creation costs",
+        "(deep-amm create-pool fee + rent) are paid out of the migration fee; the rest",
+        "goes to the treasury. If the migration fee does not cover the costs, anyone can",
+        "top up the `pool_creator` PDA with SOL and retry (that PDA is shared by every",
+        "graduation, and each one sweeps what is left of it to the Treasury, so top up in",
+        "the same transaction or right before the retry). Idempotent: a second call",
+        "fails with `AlreadyGraduated`."
+      ],
+      "discriminator": [45, 235, 225, 181, 17, 218, 64, 130],
+      "accounts": [
+        {
+          "name": "migration_authority",
+          "docs": [
+            "Must be the configured migration authority (expected: a multisig). Triggers",
+            "graduation and fronts the two temporary ATAs' rent (refunded); never holds funds."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        },
+        {
+          "name": "treasury",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [116, 114, 101, 97, 115, 117, 114, 121]
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint",
+          "writable": true,
+          "relations": ["curve"]
+        },
+        {
+          "name": "curve",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [99, 117, 114, 118, 101]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "curve"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28,
+                  180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19,
+                153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_creator",
+          "docs": [
+            "their share of the DeepSwap creator fee. Never signs and receives nothing here."
+          ]
+        },
+        {
+          "name": "pool_creator",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [112, 111, 111, 108, 95, 99, 114, 101, 97, 116, 111, 114]
+              }
+            ]
+          }
+        },
+        {
+          "name": "creator_token",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "pool_creator"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28,
+                  180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19,
+                153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89
+              ]
+            }
+          }
+        },
+        {
+          "name": "wsol_mint",
+          "address": "So11111111111111111111111111111111111111112"
+        },
+        {
+          "name": "creator_wsol",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "pool_creator"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28,
+                  180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "wsol_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19,
+                153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89
+              ]
+            }
+          }
+        },
+        {
+          "name": "creator_lp_token",
+          "writable": true
+        },
+        {
+          "name": "pool_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [114, 97, 121, 100, 105, 117, 109, 95, 112, 111, 111, 108]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "amm_config"
+        },
+        {
+          "name": "permission",
+          "docs": ["admin); seeds, owner and type verified by deep-amm."]
+        },
+        {
+          "name": "raydium_authority"
+        },
+        {
+          "name": "lp_mint",
+          "writable": true
+        },
+        {
+          "name": "token_0_vault",
+          "writable": true
+        },
+        {
+          "name": "token_1_vault",
+          "writable": true
+        },
+        {
+          "name": "create_pool_fee",
+          "writable": true,
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "observation_state",
+          "writable": true
+        },
+        {
+          "name": "cp_swap_program",
+          "address": "HCrCy6bzHhZ1b6bXwQAucEFkKXyzYMh3hgAR8UPrYSEP"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize_config",
+      "docs": [
+        "One-time protocol setup. The signer becomes admin and must be this program's",
+        "upgrade authority (prevents front-running the config PDA after deploy)."
+      ],
+      "discriminator": [208, 127, 21, 1, 194, 190, 196, 70],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        },
+        {
+          "name": "treasury",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [116, 114, 101, 97, 115, 117, 114, 121]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program",
+          "address": "7czURwVLkQpcF1HVhhZU5GGzvPA8YniogZY1BhZHCDtA"
+        },
+        {
+          "name": "program_data"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "params",
+          "type": {
+            "defined": {
+              "name": "ConfigParams"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "migrate_config",
+      "docs": [
+        "PERMISSIONLESS, idempotent: grows a v1 Config (213 B) and, if present, a v1",
+        "PendingConfig (165 B) to the v2 layout. New fields start at 0 (launch fee off);",
+        "the admin then sets the launch fee through the timelock. No-op when already v2."
+      ],
+      "discriminator": [92, 131, 58, 105, 210, 154, 224, 193],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        },
+        {
+          "name": "pending_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [112, 101, 110, 100, 105, 110, 103, 95, 99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "migrate_curve",
+      "docs": [
+        "PERMISSIONLESS, idempotent: grows a v1 BondingCurve (177 B) to v2 by appending",
+        "`protocol_fees_unclaimed = 0`. No-op when already v2."
+      ],
+      "discriminator": [151, 254, 50, 13, 112, 235, 152, 72],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "curve",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [99, 117, 114, 118, 101]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "propose_admin",
+      "docs": ["Two-step admin transfer, step 1."],
+      "discriminator": [121, 214, 199, 212, 87, 39, 117, 234],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": ["config"]
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "new_admin",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "queue_config_update",
+      "docs": [
+        "Timelocked config change, step 1 (admin). Validates `params` now and stores them",
+        "with `eta = now + config.timelock_seconds` (the delay in force at queue time, so",
+        "shortening the timelock is itself delayed by the current timelock). Only one",
+        "change can be pending; cancel it first to replace it."
+      ],
+      "discriminator": [253, 118, 22, 101, 51, 203, 173, 89],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": ["config"]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        },
+        {
+          "name": "pending_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [112, 101, 110, 100, 105, 110, 103, 95, 99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "params",
+          "type": {
+            "defined": {
+              "name": "ConfigParams"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "sell",
+      "docs": ["Sell an exact token amount for at least `min_sol_out` lamports."],
+      "discriminator": [51, 230, 133, 164, 1, 127, 131, 173],
+      "accounts": [
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint",
+          "relations": ["curve"]
+        },
+        {
+          "name": "curve",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [99, 117, 114, 118, 101]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "curve"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28,
+                  180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19,
+                153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89
+              ]
+            }
+          }
+        },
+        {
+          "name": "user_token",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "user"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28,
+                  180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19,
+                153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "tokens_in",
+          "type": "u64"
+        },
+        {
+          "name": "min_sol_out",
+          "type": "u64"
+        },
+        {
+          "name": "deadline",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "set_paused",
+      "docs": ["Emergency pause. Blocks create/buy/sell; does not block creator fee claims."],
+      "discriminator": [91, 60, 125, 192, 176, 225, 166, 218],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": ["config"]
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "paused",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "sweep_protocol_fees",
+      "docs": [
+        "PERMISSIONLESS: moves a curve's accrued protocol fees (trade + launch) to the",
+        "Treasury. Batched off the hot path so buys/sells never write the Treasury."
+      ],
+      "discriminator": [117, 225, 240, 75, 71, 195, 44, 43],
+      "accounts": [
+        {
+          "name": "curve",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [99, 117, 114, 118, 101]
+              },
+              {
+                "kind": "account",
+                "path": "curve.mint",
+                "account": "BondingCurve"
+              }
+            ]
+          }
+        },
+        {
+          "name": "treasury",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [116, 114, 101, 97, 115, 117, 114, 121]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "withdraw_protocol_fees",
+      "docs": [
+        "Sends accrued protocol + migration fees from the treasury PDA to",
+        "`config.fee_recipient`. Admin only; the treasury always stays rent-exempt."
+      ],
+      "discriminator": [11, 68, 165, 98, 18, 208, 134, 73],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": ["config"]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        },
+        {
+          "name": "treasury",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [116, 114, 101, 97, 115, 117, 114, 121]
+              }
+            ]
+          }
+        },
+        {
+          "name": "fee_recipient",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "BondingCurve",
+      "discriminator": [23, 183, 248, 55, 96, 216, 172, 96]
+    },
+    {
+      "name": "Config",
+      "discriminator": [155, 12, 170, 224, 30, 250, 204, 130]
+    },
+    {
+      "name": "PendingConfig",
+      "discriminator": [109, 48, 178, 191, 125, 67, 26, 70]
+    },
+    {
+      "name": "Treasury",
+      "discriminator": [238, 239, 123, 238, 89, 1, 168, 253]
+    }
+  ],
+  "events": [
+    {
+      "name": "ConfigUpdateCancelled",
+      "discriminator": [118, 51, 223, 222, 189, 52, 133, 14]
+    },
+    {
+      "name": "ConfigUpdateQueued",
+      "discriminator": [179, 132, 252, 232, 56, 112, 206, 78]
+    },
+    {
+      "name": "ConfigUpdated",
+      "discriminator": [40, 241, 230, 122, 11, 19, 198, 194]
+    },
+    {
+      "name": "CreatorFeesClaimed",
+      "discriminator": [189, 178, 21, 181, 171, 179, 131, 1]
+    },
+    {
+      "name": "CurveCompleted",
+      "discriminator": [1, 174, 164, 127, 219, 129, 243, 14]
+    },
+    {
+      "name": "Graduated",
+      "discriminator": [51, 241, 66, 50, 140, 245, 156, 192]
+    },
+    {
+      "name": "LaunchFeeCharged",
+      "discriminator": [226, 227, 50, 17, 83, 210, 14, 149]
+    },
+    {
+      "name": "PauseChanged",
+      "discriminator": [238, 188, 213, 78, 134, 209, 178, 218]
+    },
+    {
+      "name": "ProtocolFeesSwept",
+      "discriminator": [233, 66, 206, 184, 30, 100, 130, 85]
+    },
+    {
+      "name": "ProtocolFeesWithdrawn",
+      "discriminator": [202, 213, 134, 216, 108, 14, 84, 99]
+    },
+    {
+      "name": "TokenCreated",
+      "discriminator": [236, 19, 41, 255, 130, 78, 147, 172]
+    },
+    {
+      "name": "TradeEvent",
+      "discriminator": [189, 219, 127, 211, 78, 230, 97, 238]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "Paused",
+      "msg": "Protocol is paused"
+    },
+    {
+      "code": 6001,
+      "name": "Unauthorized",
+      "msg": "Unauthorized"
+    },
+    {
+      "code": 6002,
+      "name": "ZeroAmount",
+      "msg": "Amount must be greater than zero"
+    },
+    {
+      "code": 6003,
+      "name": "CurveComplete",
+      "msg": "Bonding curve is complete"
+    },
+    {
+      "code": 6004,
+      "name": "CurveNotComplete",
+      "msg": "Bonding curve is not complete"
+    },
+    {
+      "code": 6005,
+      "name": "AlreadyGraduated",
+      "msg": "Token already graduated"
+    },
+    {
+      "code": 6006,
+      "name": "InsufficientReserves",
+      "msg": "Insufficient curve reserves"
+    },
+    {
+      "code": 6007,
+      "name": "SlippageExceeded",
+      "msg": "Slippage tolerance exceeded"
+    },
+    {
+      "code": 6008,
+      "name": "DeadlineExceeded",
+      "msg": "Quote deadline exceeded"
+    },
+    {
+      "code": 6009,
+      "name": "InvalidFee",
+      "msg": "Invalid fee configuration"
+    },
+    {
+      "code": 6010,
+      "name": "InvalidParams",
+      "msg": "Invalid parameters"
+    },
+    {
+      "code": 6011,
+      "name": "InvalidMetadata",
+      "msg": "Invalid token metadata"
+    },
+    {
+      "code": 6012,
+      "name": "InvalidFeeRecipient",
+      "msg": "Fee recipient does not match config"
+    },
+    {
+      "code": 6013,
+      "name": "Overflow",
+      "msg": "Arithmetic overflow"
+    },
+    {
+      "code": 6014,
+      "name": "InsolventCurve",
+      "msg": "Curve account would become insolvent"
+    },
+    {
+      "code": 6015,
+      "name": "InsufficientTreasury",
+      "msg": "Withdrawal exceeds treasury balance above rent"
+    },
+    {
+      "code": 6016,
+      "name": "InvalidPool",
+      "msg": "Invalid AMM pool account"
+    },
+    {
+      "code": 6017,
+      "name": "TimelockNotElapsed",
+      "msg": "Config update timelock has not elapsed"
+    },
+    {
+      "code": 6018,
+      "name": "NoPendingConfigUpdate",
+      "msg": "No config update is queued"
+    },
+    {
+      "code": 6019,
+      "name": "ConfigUpdatePending",
+      "msg": "A config update is already queued; cancel it first"
+    },
+    {
+      "code": 6020,
+      "name": "ConfigUpdateExpired",
+      "msg": "Queued config update expired; cancel and re-queue"
+    },
+    {
+      "code": 6021,
+      "name": "LaunchFeeAboveCap",
+      "msg": "Launch fee exceeds the hard cap"
+    },
+    {
+      "code": 6022,
+      "name": "PriceFeedInvalid",
+      "msg": "Invalid Pyth price account (address, owner, layout or feed)"
+    },
+    {
+      "code": 6023,
+      "name": "PriceNotFullyVerified",
+      "msg": "Pyth price update is not fully verified"
+    },
+    {
+      "code": 6024,
+      "name": "PriceStale",
+      "msg": "Pyth price is stale"
+    },
+    {
+      "code": 6025,
+      "name": "PriceNonPositive",
+      "msg": "Pyth price is not positive"
+    },
+    {
+      "code": 6026,
+      "name": "PriceConfidenceTooWide",
+      "msg": "Pyth price confidence interval too wide"
+    }
+  ],
+  "types": [
+    {
+      "name": "BondingCurve",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "creator",
+            "type": "pubkey"
+          },
+          {
+            "name": "virtual_sol_reserves",
+            "type": "u64"
+          },
+          {
+            "name": "virtual_token_reserves",
+            "type": "u64"
+          },
+          {
+            "name": "real_sol_reserves",
+            "type": "u64"
+          },
+          {
+            "name": "real_token_reserves",
+            "type": "u64"
+          },
+          {
+            "name": "curve_supply",
+            "type": "u64"
+          },
+          {
+            "name": "token_total_supply",
+            "type": "u64"
+          },
+          {
+            "name": "protocol_fee_bps",
+            "docs": ["Fees are snapshotted at launch so config changes never affect live curves."],
+            "type": "u16"
+          },
+          {
+            "name": "creator_fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "migration_fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "creator_fees_unclaimed",
+            "type": "u64"
+          },
+          {
+            "name": "complete",
+            "type": "bool"
+          },
+          {
+            "name": "graduated",
+            "type": "bool"
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "pool",
+            "docs": [
+              "deep-amm pool created at graduation (default until graduated). Appended field."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "protocol_fees_unclaimed",
+            "docs": [
+              "Protocol fees (trade + launch) held on this PDA until sweep_protocol_fees.",
+              "Appended in v2."
+            ],
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Config",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "pending_admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "fee_recipient",
+            "type": "pubkey"
+          },
+          {
+            "name": "migration_authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "protocol_fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "creator_fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "migration_fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "initial_virtual_sol",
+            "type": "u64"
+          },
+          {
+            "name": "initial_virtual_token",
+            "type": "u64"
+          },
+          {
+            "name": "curve_supply",
+            "type": "u64"
+          },
+          {
+            "name": "token_total_supply",
+            "type": "u64"
+          },
+          {
+            "name": "decimals",
+            "type": "u8"
+          },
+          {
+            "name": "paused",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "raydium_amm_config",
+            "docs": ["deep-amm AmmConfig that graduated pools are created under (appended field)."],
+            "type": "pubkey"
+          },
+          {
+            "name": "timelock_seconds",
+            "docs": ["Delay for queued config changes, seconds (appended field)."],
+            "type": "u32"
+          },
+          {
+            "name": "launch_fee_usd_cents",
+            "docs": [
+              "Launch fee in US cents, priced in SOL via Pyth at create_token (appended, v2).",
+              "0 = no fee. Capped at MAX_LAUNCH_FEE_USD_CENTS."
+            ],
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ConfigParams",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "fee_recipient",
+            "type": "pubkey"
+          },
+          {
+            "name": "migration_authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "protocol_fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "creator_fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "migration_fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "initial_virtual_sol",
+            "type": "u64"
+          },
+          {
+            "name": "initial_virtual_token",
+            "type": "u64"
+          },
+          {
+            "name": "curve_supply",
+            "type": "u64"
+          },
+          {
+            "name": "token_total_supply",
+            "type": "u64"
+          },
+          {
+            "name": "decimals",
+            "type": "u8"
+          },
+          {
+            "name": "raydium_amm_config",
+            "type": "pubkey"
+          },
+          {
+            "name": "timelock_seconds",
+            "docs": ["Delay applied to every later config change (0..=MAX_TIMELOCK_SECONDS)."],
+            "type": "u32"
+          },
+          {
+            "name": "launch_fee_usd_cents",
+            "docs": ["Launch fee in US cents (0..=MAX_LAUNCH_FEE_USD_CENTS). Appended in v2."],
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ConfigUpdateCancelled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "eta",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ConfigUpdateQueued",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "eta",
+            "type": "i64"
+          },
+          {
+            "name": "queued_at",
+            "type": "i64"
+          },
+          {
+            "name": "params",
+            "type": {
+              "defined": {
+                "name": "ConfigParams"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "ConfigUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CreatorFeesClaimed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "creator",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CurveCompleted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "real_sol_reserves",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Graduated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "lp_sol",
+            "type": "u64"
+          },
+          {
+            "name": "lp_tokens",
+            "type": "u64"
+          },
+          {
+            "name": "burned_tokens",
+            "type": "u64"
+          },
+          {
+            "name": "migration_fee",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "LaunchFeeCharged",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "creator",
+            "type": "pubkey"
+          },
+          {
+            "name": "usd_cents",
+            "type": "u16"
+          },
+          {
+            "name": "lamports",
+            "type": "u64"
+          },
+          {
+            "name": "price",
+            "docs": ["Pyth SOL/USD price · 10^exponent USD"],
+            "type": "i64"
+          },
+          {
+            "name": "exponent",
+            "type": "i32"
+          },
+          {
+            "name": "publish_time",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PauseChanged",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "paused",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PendingConfig",
+      "docs": ["The single queued config change (reused; `active` marks whether one is pending)."],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "active",
+            "type": "bool"
+          },
+          {
+            "name": "eta",
+            "docs": ["Earliest unix time `apply_config_update` succeeds."],
+            "type": "i64"
+          },
+          {
+            "name": "queued_at",
+            "type": "i64"
+          },
+          {
+            "name": "params",
+            "type": {
+              "defined": {
+                "name": "ConfigParams"
+              }
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProtocolFeesSwept",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProtocolFeesWithdrawn",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "recipient",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TokenCreated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "creator",
+            "type": "pubkey"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "symbol",
+            "type": "string"
+          },
+          {
+            "name": "uri",
+            "type": "string"
+          },
+          {
+            "name": "curve_supply",
+            "type": "u64"
+          },
+          {
+            "name": "token_total_supply",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TradeEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "trader",
+            "type": "pubkey"
+          },
+          {
+            "name": "is_buy",
+            "type": "bool"
+          },
+          {
+            "name": "sol_amount",
+            "type": "u64"
+          },
+          {
+            "name": "token_amount",
+            "type": "u64"
+          },
+          {
+            "name": "protocol_fee",
+            "type": "u64"
+          },
+          {
+            "name": "creator_fee",
+            "type": "u64"
+          },
+          {
+            "name": "virtual_sol_reserves",
+            "type": "u64"
+          },
+          {
+            "name": "virtual_token_reserves",
+            "type": "u64"
+          },
+          {
+            "name": "real_sol_reserves",
+            "type": "u64"
+          },
+          {
+            "name": "real_token_reserves",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Treasury",
+      "docs": ["Program-owned PDA that accrues protocol trade fees and migration fees."],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ]
+}
