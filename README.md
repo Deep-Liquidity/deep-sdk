@@ -66,7 +66,7 @@ keypair.
 
 ## Programs
 
-The program ids are the same on mainnet-beta and devnet.
+The program ids are the same on mainnet and devnet.
 
 | Program | Address |
 | --- | --- |
@@ -81,12 +81,20 @@ The public HTTP API is described at
 
 ## Install
 
-The npm packages are being prepared for release. Until then, use the compiled packages in
-`packages/*/dist` or vendor the source.
+```bash
+npm install @deepliquidity/sdk @deepliquidity/curve-math @solana/web3.js
+npm install @deepliquidity/shared-types   # optional: types for the DEEP HTTP API
+```
+
+| Package | npm |
+| --- | --- |
+| `@deepliquidity/sdk` | [![npm](https://img.shields.io/npm/v/@deepliquidity/sdk?color=00F0FF&labelColor=0E141A)](https://www.npmjs.com/package/@deepliquidity/sdk) |
+| `@deepliquidity/curve-math` | [![npm](https://img.shields.io/npm/v/@deepliquidity/curve-math?color=00F0FF&labelColor=0E141A)](https://www.npmjs.com/package/@deepliquidity/curve-math) |
+| `@deepliquidity/shared-types` | [![npm](https://img.shields.io/npm/v/@deepliquidity/shared-types?color=00F0FF&labelColor=0E141A)](https://www.npmjs.com/package/@deepliquidity/shared-types) |
 
 ## Status
 
-DEEP is live on **Solana mainnet-beta** since 8 October 2026, and on devnet for testing.
+DEEP is live on **Solana mainnet** since 8 October 2026, and on devnet for testing.
 Nothing in these packages sends a transaction on its own.
 
 ## License

@@ -6,7 +6,7 @@ byte layouts, events, the exact fee maths, errors, compute budgets, runnable exa
 public HTTP API.
 
 > **Status (2026-10-08).** deep-curve, deep-amm and deep-rewards are deployed on **Solana
-> mainnet-beta** and on **devnet**, at the same program ids, with the **DEEP V1 fee model**
+> mainnet** and on **devnet**, at the same program ids, with the **DEEP V1 fee model**
 > (per-side DEEP fees, a reward model and rate chosen per token and per pool). Mainnet was
 > deployed and initialised on 2026-10-08; every pool there is V1.
 > Pools created on devnet before 2026-10-08 keep the legacy fee model: read `fee_model` on
@@ -27,7 +27,8 @@ devnet reads and simulations on 2026-10-06 (`packages/sdk/examples`).
 | Anchor IDLs (spec 0.1) | `idl/deep_curve.json`, `idl/deep_amm.json`; in the npm package `<sdk>/idl/deep_curve.json` |
 | HTTP API               | `https://api.deepliquidity.fun/v1/…`, OpenAPI 3.1 at `GET /v1/openapi.json`                |
 
-The npm packages are **not published yet**: use the packages from the SDK repository.
+The packages are on npm: `npm install @deepliquidity/sdk @deepliquidity/curve-math` (and
+`@deepliquidity/shared-types` for the API types).
 
 There is no on-chain Anchor IDL account for either program; the repository files are the
 source. They are checked against devnet: every live account of every IDL type has the IDL's
@@ -36,7 +37,7 @@ the events in recent transactions.
 
 ## 2. Addresses per cluster
 
-| Account                                 | devnet                                              | mainnet-beta                                              |
+| Account                                 | devnet                                              | mainnet $1                                                |
 | --------------------------------------- | --------------------------------------------------- | --------------------------------------------------------- |
 | deep-curve program                      | `7czURwVLkQpcF1HVhhZU5GGzvPA8YniogZY1BhZHCDtA`      | same address                                              |
 | deep-amm (DeepSwap) program             | `HCrCy6bzHhZ1b6bXwQAucEFkKXyzYMh3hgAR8UPrYSEP`      | same address                                              |

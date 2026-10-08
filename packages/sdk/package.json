@@ -1,6 +1,6 @@
 {
   "name": "@deepliquidity/sdk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "TypeScript client for DEEP on Solana: deep-curve (launchpad bonding curve) and DeepSwap (deep-amm) PDAs, instruction builders, account and event decoders, and the programs IDLs.",
   "license": "(MIT AND Apache-2.0)",
   "keywords": [
@@ -51,7 +51,7 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@deepliquidity/curve-math": "^0.1.0",
+    "@deepliquidity/curve-math": "^0.1.1",
     "@noble/hashes": "^2.4.0",
     "@solana/spl-token": "^0.4.15",
     "@solana/web3.js": "^1.99.0",

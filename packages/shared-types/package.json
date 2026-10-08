@@ -1,6 +1,6 @@
 {
   "name": "@deepliquidity/shared-types",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "TypeScript types for the DEEP public API (/v1): tokens, trades, candles, pools, pairs, stats, stocks.",
   "license": "MIT",
   "keywords": [

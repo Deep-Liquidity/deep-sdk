@@ -1,6 +1,6 @@
 {
   "name": "@deepliquidity/curve-math",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Deterministic integer (BigInt) math for the DEEP bonding curve (deep-curve) and DeepSwap constant-product quotes. Mirrors the on-chain Rust bit for bit.",
   "license": "MIT",
   "keywords": [
