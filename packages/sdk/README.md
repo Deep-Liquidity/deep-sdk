@@ -1,5 +1,17 @@
 # @deepliquidity/sdk
 
+<p align="center">
+  <a href="https://deepliquidity.fun"><img src="https://raw.githubusercontent.com/Deep-Liquidity/deep-sdk/main/assets/deep-og.png" alt="DEEP — Launch deeper." width="100%" /></a>
+</p>
+
+<p align="center">
+  <a href="https://deepliquidity.fun"><img alt="App" src="https://img.shields.io/badge/App-mainnet-00F0FF?style=for-the-badge&labelColor=0E141A" /></a>
+  <a href="https://github.com/Deep-Liquidity/deep-sdk/blob/main/docs/INTEGRATORS.md"><img alt="Integration guide" src="https://img.shields.io/badge/Guide-integrators-AEC6FF?style=for-the-badge&labelColor=0E141A" /></a>
+  <a href="https://api.deepliquidity.fun/v1/openapi.json"><img alt="API" src="https://img.shields.io/badge/API-OpenAPI%203.1-34F6A8?style=for-the-badge&labelColor=0E141A" /></a>
+  <a href="https://x.com/LaunchOnDL"><img alt="X @LaunchOnDL" src="https://img.shields.io/badge/X-%40LaunchOnDL-DDE3EC?style=for-the-badge&logo=x&logoColor=white&labelColor=0E141A" /></a>
+  <a href="https://t.me/LaunchOnDL"><img alt="Telegram @LaunchOnDL" src="https://img.shields.io/badge/Telegram-%40LaunchOnDL-34F6A8?style=for-the-badge&logo=telegram&logoColor=white&labelColor=0E141A" /></a>
+</p>
+
 TypeScript client for **DEEP** on Solana: the **deep-curve** launchpad (bonding curves) and
 **DeepSwap** (the deep-amm constant-product AMM that graduated tokens move to). PDAs, instruction
 builders, account and event decoders, integer quotes that match the programs exactly, and the
@@ -9,8 +21,9 @@ programs' Anchor IDLs.
 > Nothing in this package sends transactions by itself.
 
 The full integration guide (account layouts with offsets, events, fee maths, error codes,
-compute budgets, differences from pump.fun and Raydium CPMM) is `docs/INTEGRATORS.md` in the DEEP
-repository and the "Integrate" section of the DEEP docs.
+compute budgets, differences from pump.fun and Raydium CPMM) is the
+[integration guide](https://github.com/Deep-Liquidity/deep-sdk/blob/main/docs/INTEGRATORS.md) and
+the "Integrate" section of the [DEEP docs](https://docs.deepliquidity.fun/docs).
 
 ## Install
 
@@ -147,3 +160,7 @@ npx tsx examples/read-curve.ts --rpc https://api.devnet.solana.com
 
 `MIT AND Apache-2.0`: the cp-swap ports listed in `NOTICE` are Apache-2.0 (`LICENSE-APACHE`),
 everything else is MIT (`LICENSE`).
+
+## Links
+
+[Website and app](https://deepliquidity.fun) · [Docs](https://docs.deepliquidity.fun/docs) · [Integration guide](https://github.com/Deep-Liquidity/deep-sdk/blob/main/docs/INTEGRATORS.md) · [GitHub](https://github.com/Deep-Liquidity/deep-sdk) · [Blog](https://blog.deepliquidity.fun) · [Status](https://status.deepliquidity.fun) · [X](https://x.com/LaunchOnDL) · [Telegram](https://t.me/LaunchOnDL)

@@ -11,6 +11,11 @@
     "amm",
     "math"
   ],
+  "homepage": "https://deepliquidity.fun",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Deep-Liquidity/deep-sdk.git"
+  },
   "type": "module",
   "sideEffects": false,
   "main": "./dist/index.js",

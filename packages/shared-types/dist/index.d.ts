@@ -855,3 +855,19 @@ export interface HolderFeeSweep {
     /** Lamports moved, decimal string. */
     amount: string;
 }
+/**
+ * Every token launched on DEEP gets a mint address that ends in this (base58, exact case)
+ * whenever a pre-ground keypair is available. The one place the suffix is written.
+ */
+export declare const VANITY_MINT_SUFFIX = "deep";
+/** A pre-ground mint keypair from `POST /v1/launch/mint`. Handed out once, never again. */
+export interface VanityMint {
+    /** The mint address (base58); ends in `VANITY_MINT_SUFFIX`. */
+    mint: string;
+    /** The 64-byte ed25519 secret key (seed + public key), base58. It only signs `create_token`. */
+    secretKey: string;
+}
+/** `vanity` is null when no keypair is ready: the launch then uses an ordinary random mint. */
+export interface VanityMintResponse {
+    vanity: VanityMint | null;
+}

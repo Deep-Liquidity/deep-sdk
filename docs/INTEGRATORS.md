@@ -1122,7 +1122,8 @@ validation schemas and its response schemas are tested against real responses.
 | `GET /v1/ws` (WebSocket)                                      | `{"subscribe":"tokens"}` / `{"subscribe":"trades:<mint>"}` |
 
 Rate limits (per client IP): **300 requests per minute** by default; `/v1/tokens/{mint}/stats` and `/v1/pools/{address}/tvl` **120 per minute**;
-`POST /v1/metadata` 10 per minute; `POST /v1/reports` 5 per minute; `POST
+`POST /v1/metadata` 10 per minute; `POST /v1/reports` 5 per minute; `POST /v1/launch/mint`
+(a mint keypair whose address ends in `deep`, or `vanity: null`) 6 per hour; `POST
 /v1/tokens/{mint}/links` 10 per minute per IP and 6 per 10 minutes per mint. Responses carry
 `x-ratelimit-limit`, `x-ratelimit-remaining`, `x-ratelimit-reset`; a 429 carries `retry-after`.
 WebSocket: 20 topics per connection, 4,096-byte client messages; messages are

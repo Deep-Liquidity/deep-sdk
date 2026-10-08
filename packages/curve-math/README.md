@@ -1,5 +1,17 @@
 # @deepliquidity/curve-math
 
+<p align="center">
+  <a href="https://deepliquidity.fun"><img src="https://raw.githubusercontent.com/Deep-Liquidity/deep-sdk/main/assets/deep-og.png" alt="DEEP — Launch deeper." width="100%" /></a>
+</p>
+
+<p align="center">
+  <a href="https://deepliquidity.fun"><img alt="App" src="https://img.shields.io/badge/App-mainnet-00F0FF?style=for-the-badge&labelColor=0E141A" /></a>
+  <a href="https://github.com/Deep-Liquidity/deep-sdk/blob/main/docs/INTEGRATORS.md"><img alt="Integration guide" src="https://img.shields.io/badge/Guide-integrators-AEC6FF?style=for-the-badge&labelColor=0E141A" /></a>
+  <a href="https://api.deepliquidity.fun/v1/openapi.json"><img alt="API" src="https://img.shields.io/badge/API-OpenAPI%203.1-34F6A8?style=for-the-badge&labelColor=0E141A" /></a>
+  <a href="https://x.com/LaunchOnDL"><img alt="X @LaunchOnDL" src="https://img.shields.io/badge/X-%40LaunchOnDL-DDE3EC?style=for-the-badge&logo=x&logoColor=white&labelColor=0E141A" /></a>
+  <a href="https://t.me/LaunchOnDL"><img alt="Telegram @LaunchOnDL" src="https://img.shields.io/badge/Telegram-%40LaunchOnDL-34F6A8?style=for-the-badge&logo=telegram&logoColor=white&labelColor=0E141A" /></a>
+</p>
+
 Integer (BigInt) maths for the **DEEP** bonding curve (the deep-curve Solana program) and
 constant-product quotes. It mirrors the program's Rust `math.rs` bit for bit: both test suites run
 the same committed vectors. No floating point, no dependencies.
@@ -47,3 +59,7 @@ marketCapLamports(state); // fully diluted value at the spot price: not liquidit
 ## Licence
 
 MIT
+
+## Links
+
+[Website and app](https://deepliquidity.fun) · [Docs](https://docs.deepliquidity.fun/docs) · [Integration guide](https://github.com/Deep-Liquidity/deep-sdk/blob/main/docs/INTEGRATORS.md) · [GitHub](https://github.com/Deep-Liquidity/deep-sdk) · [Blog](https://blog.deepliquidity.fun) · [Status](https://status.deepliquidity.fun) · [X](https://x.com/LaunchOnDL) · [Telegram](https://t.me/LaunchOnDL)
