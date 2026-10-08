@@ -86,8 +86,8 @@ The npm packages are being prepared for release. Until then, use the compiled pa
 
 ## Status
 
-DEEP is live on **Solana mainnet-beta** since 8 October 2026, and on devnet for testing. The
-programs have **not been audited** yet. Nothing in these packages sends a transaction on its own.
+DEEP is live on **Solana mainnet-beta** since 8 October 2026, and on devnet for testing.
+Nothing in these packages sends a transaction on its own.
 
 ## License
 

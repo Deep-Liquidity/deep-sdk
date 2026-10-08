@@ -5,8 +5,8 @@ TypeScript client for **DEEP** on Solana: the **deep-curve** launchpad (bonding 
 builders, account and event decoders, integer quotes that match the programs exactly, and the
 programs' Anchor IDLs.
 
-> **Status.** The programs run on **mainnet-beta** and **devnet**, at the same program ids. They
-> have **not been audited**. Nothing in this package sends transactions by itself.
+> **Status.** The programs run on **mainnet-beta** and **devnet**, at the same program ids.
+> Nothing in this package sends transactions by itself.
 
 The full integration guide (account layouts with offsets, events, fee maths, error codes,
 compute budgets, differences from pump.fun and Raydium CPMM) is `docs/INTEGRATORS.md` in the DEEP

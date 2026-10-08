@@ -7,8 +7,8 @@ public HTTP API.
 
 > **Status (2026-10-08).** deep-curve, deep-amm and deep-rewards are deployed on **Solana
 > mainnet-beta** and on **devnet**, at the same program ids, with the **DEEP V1 fee model**
-> (per-side DEEP fees, a reward model and rate chosen per token and per pool). They have **not
-> been audited**. Mainnet was deployed and initialised on 2026-10-08; every pool there is V1.
+> (per-side DEEP fees, a reward model and rate chosen per token and per pool). Mainnet was
+> deployed and initialised on 2026-10-08; every pool there is V1.
 > Pools created on devnet before 2026-10-08 keep the legacy fee model: read `fee_model` on
 > every pool. The live values, compute units and examples in this guide were measured on devnet.
 
