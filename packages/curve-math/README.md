@@ -4,7 +4,7 @@ Integer (BigInt) maths for the **DEEP** bonding curve (the deep-curve Solana pro
 constant-product quotes. It mirrors the program's Rust `math.rs` bit for bit: both test suites run
 the same committed vectors. No floating point, no dependencies.
 
-> The DEEP programs run on **devnet**, are **not deployed on mainnet** and have **not been audited**.
+> The DEEP programs run on **mainnet-beta** and **devnet** and have **not been audited**.
 
 ## Install
 

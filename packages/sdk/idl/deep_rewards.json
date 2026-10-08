@@ -1,0 +1,2120 @@
+{
+  "address": "4z2KpxUcdNFXFpzxKtcmTv6aDMqE4CMLCdbYExLYeDE2",
+  "metadata": {
+    "name": "deep_rewards",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "DEEP Holder Rewards: per-(token, reward asset) cumulative Merkle distributor"
+  },
+  "instructions": [
+    {
+      "name": "accept_admin",
+      "docs": ["Admin transfer, step 2 (signed by the proposed admin)."],
+      "discriminator": [112, 42, 45, 90, 116, 181, 13, 170],
+      "accounts": [
+        {
+          "name": "new_admin",
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [114, 101, 119, 97, 114, 100, 115, 95, 99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "activate_root",
+      "docs": ["PERMISSIONLESS after the pending root's eta. Re-checks the funding bound."],
+      "discriminator": [67, 150, 173, 61, 217, 174, 188, 125],
+      "accounts": [
+        {
+          "name": "distributor",
+          "writable": true
+        },
+        {
+          "name": "holder_vault"
+        },
+        {
+          "name": "token_vault"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "apply_config_update",
+      "docs": [
+        "PERMISSIONLESS once the queued change's eta has passed (and within the 14-day grace)."
+      ],
+      "discriminator": [211, 233, 51, 21, 33, 87, 209, 147],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [114, 101, 119, 97, 114, 100, 115, 95, 99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        },
+        {
+          "name": "pending_config",
+          "docs": [
+            "Must be in the current layout: a PendingRewardsConfig written before the guardian",
+            "existed is refused until the permissionless `migrate_config` has re-written it, so its",
+            "old bytes are never read as a guardian."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112, 101, 110, 100, 105, 110, 103, 95, 114, 101, 119, 97, 114, 100, 115, 95, 99,
+                  111, 110, 102, 105, 103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "cancel_config_update",
+      "docs": ["Admin: drops the queued settings change."],
+      "discriminator": [216, 180, 255, 207, 118, 146, 126, 89],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": ["config"]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [114, 101, 119, 97, 114, 100, 115, 95, 99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        },
+        {
+          "name": "pending_config",
+          "docs": [
+            "Must be in the current layout: a PendingRewardsConfig written before the guardian",
+            "existed is refused until the permissionless `migrate_config` has re-written it, so its",
+            "old bytes are never read as a guardian."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112, 101, 110, 100, 105, 110, 103, 95, 114, 101, 119, 97, 114, 100, 115, 95, 99,
+                  111, 110, 102, 105, 103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "claim_sol",
+      "docs": [
+        "The claimant (signer) takes `cumulative_amount − claimed` lamports from a SOL",
+        "distributor. Never paused. `ClaimStatus` is created on first claim (claimant pays)."
+      ],
+      "discriminator": [139, 113, 179, 189, 190, 30, 132, 195],
+      "accounts": [
+        {
+          "name": "claimant",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [114, 101, 119, 97, 114, 100, 115, 95, 99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        },
+        {
+          "name": "distributor",
+          "writable": true
+        },
+        {
+          "name": "holder_vault",
+          "writable": true
+        },
+        {
+          "name": "claim_status",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [99, 108, 97, 105, 109]
+              },
+              {
+                "kind": "account",
+                "path": "distributor"
+              },
+              {
+                "kind": "account",
+                "path": "claimant"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "cumulative_amount",
+          "type": "u64"
+        },
+        {
+          "name": "proof",
+          "type": {
+            "vec": {
+              "array": ["u8", 32]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "claim_token",
+      "docs": [
+        "The claimant (signer) takes `cumulative_amount − claimed` of the reward token into a",
+        "token account it owns. Never paused."
+      ],
+      "discriminator": [116, 206, 27, 191, 166, 19, 0, 73],
+      "accounts": [
+        {
+          "name": "claimant",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [114, 101, 119, 97, 114, 100, 115, 95, 99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        },
+        {
+          "name": "distributor",
+          "writable": true
+        },
+        {
+          "name": "holder_vault"
+        },
+        {
+          "name": "reward_mint"
+        },
+        {
+          "name": "token_vault",
+          "writable": true
+        },
+        {
+          "name": "claimant_token",
+          "docs": ["Any token account of the reward mint owned by the claimant."],
+          "writable": true
+        },
+        {
+          "name": "claim_status",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [99, 108, 97, 105, 109]
+              },
+              {
+                "kind": "account",
+                "path": "distributor"
+              },
+              {
+                "kind": "account",
+                "path": "claimant"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "cumulative_amount",
+          "type": "u64"
+        },
+        {
+          "name": "proof",
+          "type": {
+            "vec": {
+              "array": ["u8", 32]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "deposit_sol",
+      "docs": [
+        "Anyone: adds `amount` SOL to a SOL distributor's holder vault (Phase 2–3 may CPI this",
+        "or credit the vault directly; see docs/V1_FEES.md section 4.5)."
+      ],
+      "discriminator": [108, 81, 78, 117, 125, 155, 56, 200],
+      "accounts": [
+        {
+          "name": "depositor",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "distributor"
+        },
+        {
+          "name": "holder_vault",
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "deposit_token",
+      "docs": ["Anyone: adds `amount` of the reward token to a token distributor's vault."],
+      "discriminator": [11, 156, 96, 218, 39, 163, 180, 19],
+      "accounts": [
+        {
+          "name": "depositor",
+          "signer": true
+        },
+        {
+          "name": "distributor"
+        },
+        {
+          "name": "reward_mint"
+        },
+        {
+          "name": "depositor_token",
+          "writable": true
+        },
+        {
+          "name": "token_vault",
+          "writable": true
+        },
+        {
+          "name": "token_program"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "init_distributor",
+      "docs": [
+        "Creates the distributor for (`mint`, `reward_mint`). Admin or root authority (the",
+        "keeper inits Holder-Rewards tokens). For SOL the payer funds the holder vault's 0-byte",
+        "rent minimum (kept as `vault_reserve`, so every lamport already deposited stays",
+        "distributable) and the vault's WSOL ATA; for a token it funds the vault's ATA."
+      ],
+      "discriminator": [4, 170, 72, 1, 58, 177, 150, 43],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": ["Admin or root authority; pays rent."],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [114, 101, 119, 97, 114, 100, 115, 95, 99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint",
+          "docs": ["The token whose holders are rewarded (SPL Token or Token-2022)."]
+        },
+        {
+          "name": "reward_mint",
+          "docs": ["The paired asset (WSOL mint for native SOL)."]
+        },
+        {
+          "name": "holder_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [104, 111, 108, 100, 101, 114, 95, 118, 97, 117, 108, 116]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "distributor",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [100, 105, 115, 116, 114, 105, 98, 117, 116, 111, 114]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              },
+              {
+                "kind": "account",
+                "path": "reward_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_token_account",
+          "docs": ["idempotently in the handler."],
+          "writable": true
+        },
+        {
+          "name": "reward_token_program"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize",
+      "docs": [
+        "Creates the RewardsConfig. Only the program's upgrade authority may call it (blocks",
+        "deploy-time front-running); the signer becomes `admin`."
+      ],
+      "discriminator": [175, 175, 109, 31, 13, 152, 155, 237],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [114, 101, 119, 97, 114, 100, 115, 95, 99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        },
+        {
+          "name": "pending_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112, 101, 110, 100, 105, 110, 103, 95, 114, 101, 119, 97, 114, 100, 115, 95, 99,
+                  111, 110, 102, 105, 103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program",
+          "address": "4z2KpxUcdNFXFpzxKtcmTv6aDMqE4CMLCdbYExLYeDE2"
+        },
+        {
+          "name": "program_data"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "params",
+          "type": {
+            "defined": {
+              "name": "RewardsConfigParams"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "migrate_config",
+      "docs": [
+        "PERMISSIONLESS, idempotent: brings a RewardsConfig and PendingRewardsConfig written",
+        "before the guardian existed (devnet) to the current rules. Moves no funds.",
+        "",
+        "* `PendingRewardsConfig` grows from 280 to 312 bytes (the payer funds the rent",
+        "difference). Its params are re-written in the new layout with NO guardian (the zero",
+        "key), so a change that was queued before the upgrade can no longer be applied: the",
+        "admin cancels it and queues it again with a guardian. Until this instruction has",
+        "run, `queue_config_update`, `apply_config_update` and `cancel_config_update` fail",
+        "with `ConfigNotMigrated`.",
+        "* `RewardsConfig` keeps its size (the guardian takes 32 of its reserved bytes, so it",
+        "reads as \"no guardian\" until the admin's next settings change sets one), and its",
+        "`root_delay_seconds` is raised to the new minimum if it is below it. Nothing is ever",
+        "lowered.",
+        "",
+        "A second call changes nothing."
+      ],
+      "discriminator": [92, 131, 58, 105, 210, 154, 224, 193],
+      "accounts": [
+        {
+          "name": "payer",
+          "docs": ["Anyone; funds the rent difference of the grown PendingRewardsConfig."],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [114, 101, 119, 97, 114, 100, 115, 95, 99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        },
+        {
+          "name": "pending_config",
+          "docs": ["size are checked in the handler."],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112, 101, 110, 100, 105, 110, 103, 95, 114, 101, 119, 97, 114, 100, 115, 95, 99,
+                  111, 110, 102, 105, 103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "propose_admin",
+      "docs": ["Admin transfer, step 1. `Pubkey::default()` cancels."],
+      "discriminator": [121, 214, 199, 212, 87, 39, 117, 234],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": ["config"]
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [114, 101, 119, 97, 114, 100, 115, 95, 99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "new_admin",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "propose_root",
+      "docs": [
+        "Root authority: publishes the next cumulative root. It always waits as pending",
+        "(replacing any older pending root) for `root_delay_seconds`, until `activate_root`; the",
+        "admin or the guardian may veto it meanwhile. No root is ever active at once: the delay",
+        "is at least `MIN_ROOT_DELAY_SECONDS` (params validation and `migrate_config`), and this",
+        "instruction has no path that activates."
+      ],
+      "discriminator": [132, 0, 76, 107, 236, 86, 118, 165],
+      "accounts": [
+        {
+          "name": "root_authority",
+          "signer": true,
+          "relations": ["config"]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [114, 101, 119, 97, 114, 100, 115, 95, 99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        },
+        {
+          "name": "distributor",
+          "writable": true
+        },
+        {
+          "name": "holder_vault"
+        },
+        {
+          "name": "token_vault"
+        }
+      ],
+      "args": [
+        {
+          "name": "root",
+          "type": {
+            "array": ["u8", 32]
+          }
+        },
+        {
+          "name": "max_total_claim",
+          "type": "u64"
+        },
+        {
+          "name": "snapshot_slot",
+          "type": "u64"
+        },
+        {
+          "name": "data_hash",
+          "type": {
+            "array": ["u8", 32]
+          }
+        }
+      ]
+    },
+    {
+      "name": "push_sol",
+      "docs": [
+        "AUTO-SEND (PERMISSIONLESS crank, payout mode 1 only): pushes a holder's unclaimed SOL",
+        "when it is worth at least `push_min_usd_micros` at the Pyth SOL/USD price. The recipient",
+        "must be a plain system account (a wallet) that ends rent-exempt; otherwise the",
+        "instruction fails, nothing changes, and the amount stays claimable."
+      ],
+      "discriminator": [216, 19, 249, 192, 94, 129, 207, 46],
+      "accounts": [
+        {
+          "name": "cranker",
+          "docs": ["Anyone; pays the ClaimStatus rent on a first push and the fee."],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [114, 101, 119, 97, 114, 100, 115, 95, 99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        },
+        {
+          "name": "distributor",
+          "writable": true
+        },
+        {
+          "name": "holder_vault",
+          "writable": true
+        },
+        {
+          "name": "claimant",
+          "writable": true
+        },
+        {
+          "name": "claim_status",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [99, 108, 97, 105, 109]
+              },
+              {
+                "kind": "account",
+                "path": "distributor"
+              },
+              {
+                "kind": "account",
+                "path": "claimant"
+              }
+            ]
+          }
+        },
+        {
+          "name": "price_update"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "cumulative_amount",
+          "type": "u64"
+        },
+        {
+          "name": "proof",
+          "type": {
+            "vec": {
+              "array": ["u8", 32]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "push_token",
+      "docs": [
+        "AUTO-SEND for a token distributor whose reward mint is a configured USD stablecoin",
+        "(valued at face). Other assets are claim-only. Creates the claimant's ATA idempotently",
+        "(cranker pays); a frozen recipient account fails the instruction (stays claimable)."
+      ],
+      "discriminator": [145, 100, 207, 100, 128, 254, 192, 7],
+      "accounts": [
+        {
+          "name": "cranker",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [114, 101, 119, 97, 114, 100, 115, 95, 99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        },
+        {
+          "name": "distributor",
+          "writable": true
+        },
+        {
+          "name": "holder_vault"
+        },
+        {
+          "name": "reward_mint"
+        },
+        {
+          "name": "token_vault",
+          "writable": true
+        },
+        {
+          "name": "claimant"
+        },
+        {
+          "name": "claimant_token",
+          "writable": true
+        },
+        {
+          "name": "claim_status",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [99, 108, 97, 105, 109]
+              },
+              {
+                "kind": "account",
+                "path": "distributor"
+              },
+              {
+                "kind": "account",
+                "path": "claimant"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "cumulative_amount",
+          "type": "u64"
+        },
+        {
+          "name": "proof",
+          "type": {
+            "vec": {
+              "array": ["u8", 32]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "queue_config_update",
+      "docs": [
+        "Admin, step 1 of EVERY settings change (root authority, guardian, payout mode, root",
+        "delay, thresholds, caps, price account, stablecoins, stray recipient). Validates now and",
+        "waits `config.root_delay_seconds` (the delay in force at queue time, at least 12 h) before",
+        "anyone can apply it, so a key rotation or a payout change is public before it bites.",
+        "One change at a time; cancel to replace it. Never touches funds."
+      ],
+      "discriminator": [253, 118, 22, 101, 51, 203, 173, 89],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": ["config"]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [114, 101, 119, 97, 114, 100, 115, 95, 99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        },
+        {
+          "name": "pending_config",
+          "docs": [
+            "Must be in the current layout: a PendingRewardsConfig written before the guardian",
+            "existed is refused until the permissionless `migrate_config` has re-written it, so its",
+            "old bytes are never read as a guardian."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112, 101, 110, 100, 105, 110, 103, 95, 114, 101, 119, 97, 114, 100, 115, 95, 99,
+                  111, 110, 102, 105, 103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "params",
+          "type": {
+            "defined": {
+              "name": "RewardsConfigParams"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "recover_stray",
+      "docs": [
+        "PERMISSIONLESS: moves a token balance that is NOT a reward asset out of a holder vault",
+        "token account (e.g. the rewarded token itself sent to the vault, or an airdrop) to",
+        "`config.stray_recipient` (its ATA, created idempotently, caller pays), then closes the",
+        "emptied account with its rent to the stray recipient. Reward assets (native SOL / WSOL,",
+        "configured stablecoins, any mint with a distributor for this token) are refused, so this",
+        "can never take holder rewards."
+      ],
+      "discriminator": [41, 207, 136, 36, 202, 233, 84, 38],
+      "accounts": [
+        {
+          "name": "cranker",
+          "docs": ["Anyone; pays the stray recipient's ATA rent if it does not exist."],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [114, 101, 119, 97, 114, 100, 115, 95, 99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "holder_vault",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [104, 111, 108, 100, 101, 114, 95, 118, 97, 117, 108, 116]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "reward_distributor",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [100, 105, 115, 116, 114, 105, 98, 117, 116, 111, 114]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              },
+              {
+                "kind": "account",
+                "path": "stray_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "stray_mint"
+        },
+        {
+          "name": "vault_token",
+          "docs": ["Any token account of `stray_mint` owned by the holder vault."],
+          "writable": true
+        },
+        {
+          "name": "stray_recipient",
+          "writable": true
+        },
+        {
+          "name": "recipient_token",
+          "writable": true
+        },
+        {
+          "name": "token_program"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "set_paused",
+      "docs": [
+        "Admin or guardian: pauses (or resumes) root publication and pushes. Claims are NEVER",
+        "paused. Moves no funds."
+      ],
+      "discriminator": [91, 60, 125, 192, 176, 225, 166, 218],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [114, 101, 119, 97, 114, 100, 115, 95, 99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "paused",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "unwrap_wsol",
+      "docs": [
+        "PERMISSIONLESS: turns the WSOL in ATA(WSOL, holder_vault) (DeepSwap reward fees) into",
+        "lamports of the holder vault, through a temporary WSOL account created and closed here.",
+        "The caller fronts the temporary account's rent and gets it back in the same",
+        "instruction; the vault's ATA is never closed (deep-amm pays into it)."
+      ],
+      "discriminator": [4, 6, 123, 139, 46, 174, 17, 154],
+      "accounts": [
+        {
+          "name": "payer",
+          "docs": ["Fronts the temporary account's rent; refunded in the same instruction."],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "distributor"
+        },
+        {
+          "name": "holder_vault",
+          "writable": true
+        },
+        {
+          "name": "wsol_vault",
+          "writable": true
+        },
+        {
+          "name": "wsol_unwrap",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [119, 115, 111, 108, 95, 117, 110, 119, 114, 97, 112]
+              },
+              {
+                "kind": "account",
+                "path": "distributor"
+              }
+            ]
+          }
+        },
+        {
+          "name": "wsol_mint",
+          "address": "So11111111111111111111111111111111111111112"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "veto_root",
+      "docs": [
+        "Admin or guardian: discards the pending root. Moves no funds; the active root stays."
+      ],
+      "discriminator": [141, 196, 194, 143, 204, 114, 90, 226],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": ["The admin or the guardian."],
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [114, 101, 119, 97, 114, 100, 115, 95, 99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        },
+        {
+          "name": "distributor",
+          "writable": true
+        }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "ClaimStatus",
+      "discriminator": [22, 183, 249, 157, 247, 95, 150, 96]
+    },
+    {
+      "name": "Distributor",
+      "discriminator": [90, 90, 217, 147, 6, 32, 135, 4]
+    },
+    {
+      "name": "PendingRewardsConfig",
+      "discriminator": [203, 147, 116, 205, 139, 9, 67, 82]
+    },
+    {
+      "name": "RewardsConfig",
+      "discriminator": [27, 65, 81, 182, 166, 101, 190, 207]
+    }
+  ],
+  "events": [
+    {
+      "name": "AdminAccepted",
+      "discriminator": [174, 12, 76, 139, 158, 99, 110, 254]
+    },
+    {
+      "name": "AdminProposed",
+      "discriminator": [129, 249, 226, 227, 199, 82, 110, 243]
+    },
+    {
+      "name": "ConfigUpdateCancelled",
+      "discriminator": [118, 51, 223, 222, 189, 52, 133, 14]
+    },
+    {
+      "name": "ConfigUpdateQueued",
+      "discriminator": [179, 132, 252, 232, 56, 112, 206, 78]
+    },
+    {
+      "name": "DistributorInitialized",
+      "discriminator": [36, 207, 106, 177, 17, 78, 84, 175]
+    },
+    {
+      "name": "GuardianChangeQueued",
+      "discriminator": [223, 177, 147, 241, 77, 53, 187, 231]
+    },
+    {
+      "name": "GuardianSet",
+      "discriminator": [159, 49, 155, 156, 176, 88, 29, 190]
+    },
+    {
+      "name": "PausedSet",
+      "discriminator": [171, 125, 127, 156, 233, 81, 68, 66]
+    },
+    {
+      "name": "RewardClaimed",
+      "discriminator": [49, 28, 87, 84, 158, 48, 229, 175]
+    },
+    {
+      "name": "RewardsConfigUpdated",
+      "discriminator": [104, 85, 46, 239, 155, 224, 9, 57]
+    },
+    {
+      "name": "RewardsDeposited",
+      "discriminator": [120, 19, 149, 33, 111, 163, 248, 156]
+    },
+    {
+      "name": "RootActivated",
+      "discriminator": [24, 59, 236, 54, 131, 27, 149, 19]
+    },
+    {
+      "name": "RootProposed",
+      "discriminator": [42, 37, 28, 46, 99, 215, 183, 163]
+    },
+    {
+      "name": "RootVetoed",
+      "discriminator": [104, 203, 229, 184, 178, 81, 64, 117]
+    },
+    {
+      "name": "StrayRecovered",
+      "discriminator": [210, 34, 66, 23, 223, 233, 132, 99]
+    },
+    {
+      "name": "WsolUnwrapped",
+      "discriminator": [192, 142, 52, 23, 144, 14, 181, 21]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "Unauthorized",
+      "msg": "unauthorized"
+    },
+    {
+      "code": 6001,
+      "name": "InvalidParams",
+      "msg": "invalid parameters"
+    },
+    {
+      "code": 6002,
+      "name": "Paused",
+      "msg": "paused (claims are never paused)"
+    },
+    {
+      "code": 6003,
+      "name": "InvalidMint",
+      "msg": "invalid mint"
+    },
+    {
+      "code": 6004,
+      "name": "UnsupportedRewardMint",
+      "msg": "unsupported reward mint"
+    },
+    {
+      "code": 6005,
+      "name": "NotSolDistributor",
+      "msg": "not a SOL distributor"
+    },
+    {
+      "code": 6006,
+      "name": "NotTokenDistributor",
+      "msg": "not a token distributor"
+    },
+    {
+      "code": 6007,
+      "name": "InvalidVault",
+      "msg": "invalid vault account"
+    },
+    {
+      "code": 6008,
+      "name": "NoRoot",
+      "msg": "no root has been activated yet"
+    },
+    {
+      "code": 6009,
+      "name": "ProofTooLong",
+      "msg": "proof too long"
+    },
+    {
+      "code": 6010,
+      "name": "InvalidProof",
+      "msg": "invalid Merkle proof"
+    },
+    {
+      "code": 6011,
+      "name": "NothingToClaim",
+      "msg": "nothing to claim"
+    },
+    {
+      "code": 6012,
+      "name": "ExceedsMaxTotal",
+      "msg": "claim exceeds the root's total"
+    },
+    {
+      "code": 6013,
+      "name": "RootNotMonotonic",
+      "msg": "new root total is below the active one"
+    },
+    {
+      "code": 6014,
+      "name": "RootUnfunded",
+      "msg": "root promises more than the vault holds"
+    },
+    {
+      "code": 6015,
+      "name": "StaleSnapshot",
+      "msg": "snapshot slot not newer than the active one, or in the future"
+    },
+    {
+      "code": 6016,
+      "name": "NoPendingRoot",
+      "msg": "no pending root"
+    },
+    {
+      "code": 6017,
+      "name": "RootNotReady",
+      "msg": "pending root not yet activatable"
+    },
+    {
+      "code": 6018,
+      "name": "PushDisabled",
+      "msg": "auto-send is disabled (payout mode is CLAIM)"
+    },
+    {
+      "code": 6019,
+      "name": "BelowPushThreshold",
+      "msg": "unclaimed amount below the auto-send threshold"
+    },
+    {
+      "code": 6020,
+      "name": "PushUnsupportedAsset",
+      "msg": "auto-send is not supported for this reward asset (claim only)"
+    },
+    {
+      "code": 6021,
+      "name": "RecipientNotEligible",
+      "msg": "recipient cannot receive this payout"
+    },
+    {
+      "code": 6022,
+      "name": "RecipientFrozen",
+      "msg": "recipient token account is frozen"
+    },
+    {
+      "code": 6023,
+      "name": "PriceInvalid",
+      "msg": "Pyth SOL/USD price missing, stale or invalid"
+    },
+    {
+      "code": 6024,
+      "name": "Overflow",
+      "msg": "arithmetic overflow"
+    },
+    {
+      "code": 6025,
+      "name": "ZeroAmount",
+      "msg": "amount must be > 0"
+    },
+    {
+      "code": 6026,
+      "name": "InvalidClaimStatus",
+      "msg": "claim status does not match"
+    },
+    {
+      "code": 6027,
+      "name": "VaultShort",
+      "msg": "vault cannot cover this payout"
+    },
+    {
+      "code": 6028,
+      "name": "ConfigUpdatePending",
+      "msg": "a settings change is already queued"
+    },
+    {
+      "code": 6029,
+      "name": "NoPendingConfigUpdate",
+      "msg": "no settings change is queued"
+    },
+    {
+      "code": 6030,
+      "name": "ConfigUpdateNotReady",
+      "msg": "the queued settings change is not yet applicable"
+    },
+    {
+      "code": 6031,
+      "name": "ConfigUpdateExpired",
+      "msg": "the queued settings change expired; cancel and re-queue"
+    },
+    {
+      "code": 6032,
+      "name": "NotStray",
+      "msg": "this token is a reward asset, not stray"
+    },
+    {
+      "code": 6033,
+      "name": "ConfigNotMigrated",
+      "msg": "PendingRewardsConfig is in the old layout; run migrate_config first"
+    }
+  ],
+  "types": [
+    {
+      "name": "AdminAccepted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AdminProposed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "new_admin",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ClaimStatus",
+      "docs": [
+        "Per (distributor, claimant): the cumulative amount already paid. Permanent: closing it",
+        "would let the same cumulative leaf be claimed again."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "distributor",
+            "type": "pubkey"
+          },
+          {
+            "name": "claimant",
+            "type": "pubkey"
+          },
+          {
+            "name": "payer",
+            "docs": ["Who paid this account's rent (the claimant, or the AUTO-SEND cranker)."],
+            "type": "pubkey"
+          },
+          {
+            "name": "claimed",
+            "type": "u64"
+          },
+          {
+            "name": "last_claim_at",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ConfigUpdateCancelled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "eta",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ConfigUpdateQueued",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "eta",
+            "type": "i64"
+          },
+          {
+            "name": "root_authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "payout_mode",
+            "type": "u8"
+          },
+          {
+            "name": "root_delay_seconds",
+            "type": "u32"
+          },
+          {
+            "name": "stray_recipient",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Distributor",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "vault_bump",
+            "type": "u8"
+          },
+          {
+            "name": "mint",
+            "docs": ["The token whose holders are rewarded."],
+            "type": "pubkey"
+          },
+          {
+            "name": "reward_mint",
+            "docs": ["The paired asset paid out; `NATIVE_MINT` means native SOL."],
+            "type": "pubkey"
+          },
+          {
+            "name": "reward_token_program",
+            "docs": ["Token program of `reward_mint` (SPL Token for SOL's WSOL ATA)."],
+            "type": "pubkey"
+          },
+          {
+            "name": "reward_decimals",
+            "type": "u8"
+          },
+          {
+            "name": "holder_vault",
+            "docs": ["`[\"holder_vault\", mint]`: holds SOL rewards and owns the token vaults."],
+            "type": "pubkey"
+          },
+          {
+            "name": "token_vault",
+            "docs": [
+              "ATA(reward_mint, holder_vault): the token vault (SOL: the WSOL ATA to unwrap)."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "vault_reserve",
+            "docs": [
+              "SOL only: the vault's rent-exempt minimum, funded by `init_distributor`'s payer."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "round",
+            "docs": ["Number of roots activated so far (0 = none yet)."],
+            "type": "u32"
+          },
+          {
+            "name": "root",
+            "type": {
+              "array": ["u8", 32]
+            }
+          },
+          {
+            "name": "max_total_claim",
+            "docs": ["Sum of all cumulative leaves of the active root."],
+            "type": "u64"
+          },
+          {
+            "name": "total_claimed",
+            "type": "u64"
+          },
+          {
+            "name": "snapshot_slot",
+            "type": "u64"
+          },
+          {
+            "name": "data_hash",
+            "docs": ["sha256 of the published tree file for the active root."],
+            "type": {
+              "array": ["u8", 32]
+            }
+          },
+          {
+            "name": "activated_at",
+            "type": "i64"
+          },
+          {
+            "name": "has_pending",
+            "type": "bool"
+          },
+          {
+            "name": "pending_root",
+            "type": {
+              "array": ["u8", 32]
+            }
+          },
+          {
+            "name": "pending_max_total_claim",
+            "type": "u64"
+          },
+          {
+            "name": "pending_snapshot_slot",
+            "type": "u64"
+          },
+          {
+            "name": "pending_data_hash",
+            "type": {
+              "array": ["u8", 32]
+            }
+          },
+          {
+            "name": "pending_eta",
+            "type": "i64"
+          },
+          {
+            "name": "created_by",
+            "type": "pubkey"
+          },
+          {
+            "name": "reserved",
+            "type": {
+              "array": ["u8", 64]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "DistributorInitialized",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "distributor",
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "reward_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "holder_vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "token_vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "vault_reserve",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "GuardianChangeQueued",
+      "docs": [
+        "The guardian a queued settings change would set (emitted with `ConfigUpdateQueued`)."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "eta",
+            "type": "i64"
+          },
+          {
+            "name": "guardian",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "GuardianSet",
+      "docs": [
+        "The guardian in force (emitted with `RewardsConfigUpdated` by `initialize` and",
+        "`apply_config_update`)."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "guardian",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PausedSet",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "paused",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PendingRewardsConfig",
+      "docs": [
+        "The queued settings change (`queue_config_update` → `apply_config_update` after eta)."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "active",
+            "type": "bool"
+          },
+          {
+            "name": "eta",
+            "type": "i64"
+          },
+          {
+            "name": "queued_at",
+            "type": "i64"
+          },
+          {
+            "name": "params",
+            "type": {
+              "defined": {
+                "name": "RewardsConfigParams"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "RewardClaimed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "distributor",
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "reward_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "claimant",
+            "type": "pubkey"
+          },
+          {
+            "name": "payer",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "cumulative_amount",
+            "type": "u64"
+          },
+          {
+            "name": "total_claimed",
+            "type": "u64"
+          },
+          {
+            "name": "round",
+            "type": "u32"
+          },
+          {
+            "name": "pushed",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RewardsConfig",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "pending_admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "root_authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "payout_mode",
+            "type": "u8"
+          },
+          {
+            "name": "paused",
+            "docs": ["Blocks `propose_root` and pushes. Claims are never paused."],
+            "type": "bool"
+          },
+          {
+            "name": "root_delay_seconds",
+            "type": "u32"
+          },
+          {
+            "name": "max_proof_len",
+            "type": "u8"
+          },
+          {
+            "name": "push_min_usd_micros",
+            "type": "u64"
+          },
+          {
+            "name": "min_holding_usd_micros",
+            "type": "u64"
+          },
+          {
+            "name": "max_price_age_seconds",
+            "type": "u32"
+          },
+          {
+            "name": "sol_usd_price_update",
+            "type": "pubkey"
+          },
+          {
+            "name": "stable_count",
+            "type": "u8"
+          },
+          {
+            "name": "stable_mints",
+            "type": {
+              "array": ["pubkey", 4]
+            }
+          },
+          {
+            "name": "stray_recipient",
+            "type": "pubkey"
+          },
+          {
+            "name": "guardian",
+            "docs": [
+              "Veto-only key: `veto_root` and `set_paused` (security review F1). Takes the first 32 of",
+              "the 64 bytes that were reserved, so the account size is unchanged and a config written",
+              "before it existed reads as the zero key, i.e. no guardian."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "reserved",
+            "type": {
+              "array": ["u8", 32]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "RewardsConfigParams",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "root_authority",
+            "docs": ["Hot key of the snapshot job; publishes roots. Must differ from the admin."],
+            "type": "pubkey"
+          },
+          {
+            "name": "payout_mode",
+            "type": "u8"
+          },
+          {
+            "name": "root_delay_seconds",
+            "type": "u32"
+          },
+          {
+            "name": "max_proof_len",
+            "type": "u8"
+          },
+          {
+            "name": "push_min_usd_micros",
+            "type": "u64"
+          },
+          {
+            "name": "min_holding_usd_micros",
+            "type": "u64"
+          },
+          {
+            "name": "max_price_age_seconds",
+            "type": "u32"
+          },
+          {
+            "name": "sol_usd_price_update",
+            "type": "pubkey"
+          },
+          {
+            "name": "stable_mints",
+            "type": {
+              "vec": "pubkey"
+            }
+          },
+          {
+            "name": "stray_recipient",
+            "docs": [
+              "Receives NON-reward tokens swept out of holder vaults by `recover_stray` (default: the",
+              "admin; DEEP V1 Phase 1 sets it to the deep-curve fee vault)."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "guardian",
+            "docs": [
+              "Veto-only key (appended; security review F1): may sign `veto_root` and `set_paused`,",
+              "nothing else. Meant to be a key that can act faster than the admin (mainnet: the",
+              "instant \"pause\" Squads vault, while the admin sits behind a 48 h time lock). Never the",
+              "root authority, never the zero key."
+            ],
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RewardsConfigUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "root_authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "payout_mode",
+            "type": "u8"
+          },
+          {
+            "name": "root_delay_seconds",
+            "type": "u32"
+          },
+          {
+            "name": "push_min_usd_micros",
+            "type": "u64"
+          },
+          {
+            "name": "min_holding_usd_micros",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RewardsDeposited",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "distributor",
+            "type": "pubkey"
+          },
+          {
+            "name": "depositor",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RootActivated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "distributor",
+            "type": "pubkey"
+          },
+          {
+            "name": "round",
+            "type": "u32"
+          },
+          {
+            "name": "root",
+            "type": {
+              "array": ["u8", 32]
+            }
+          },
+          {
+            "name": "max_total_claim",
+            "type": "u64"
+          },
+          {
+            "name": "snapshot_slot",
+            "type": "u64"
+          },
+          {
+            "name": "data_hash",
+            "type": {
+              "array": ["u8", 32]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "RootProposed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "distributor",
+            "type": "pubkey"
+          },
+          {
+            "name": "root",
+            "type": {
+              "array": ["u8", 32]
+            }
+          },
+          {
+            "name": "max_total_claim",
+            "type": "u64"
+          },
+          {
+            "name": "snapshot_slot",
+            "type": "u64"
+          },
+          {
+            "name": "data_hash",
+            "type": {
+              "array": ["u8", 32]
+            }
+          },
+          {
+            "name": "eta",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RootVetoed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "distributor",
+            "type": "pubkey"
+          },
+          {
+            "name": "root",
+            "type": {
+              "array": ["u8", 32]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "StrayRecovered",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "stray_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "token_account",
+            "type": "pubkey"
+          },
+          {
+            "name": "recipient",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "closed",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WsolUnwrapped",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "distributor",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    }
+  ]
+}

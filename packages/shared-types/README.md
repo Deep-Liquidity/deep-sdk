@@ -4,7 +4,7 @@ TypeScript types for the **DEEP** public HTTP API (`/v1`): tokens, trades, candl
 DeepSwap pairs, protocol stats, TVL, stock pairs, SOL price, network and status. Types only, plus
 the `TIMEFRAMES` list.
 
-> The DEEP programs run on **devnet**, are **not deployed on mainnet** and have **not been audited**.
+> The DEEP programs run on **mainnet-beta** and **devnet** and have **not been audited**.
 
 ## Install
 

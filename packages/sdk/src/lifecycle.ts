@@ -21,9 +21,10 @@ import {
 } from "@solana/web3.js";
 import { DEEP_CURVE_PROGRAM_ID, discriminator } from "./constants.js";
 import { deepAmmPermissionPda } from "./deep-amm.js";
+import { DEEP_REWARDS_PROGRAM_ID, holderVaultPda } from "./rewards.js";
+import { feeVaultPda, feeVaultWsolAta } from "./splitter.js";
 import {
   cpmmAuthority,
-  DEEP_AMM_CREATE_POOL_FEE_RECEIVER,
   DEEP_AMM_PROGRAM_ID,
   cpmmLpMint,
   cpmmObservation,
@@ -52,14 +53,22 @@ const curvePdaOf = (mint: PublicKey, pid: PublicKey) =>
 
 /**
  * The deep-curve PDA that pays for and signs pool creation at graduation. ONE address for
- * every token (seed "pool_creator" alone): deep-amm's `initialize_with_permission` needs
- * a Permission account derived from the payer (`deepAmmPermissionPda`), which the deep-amm
- * admin creates once for this address. It replaces the per-mint `poolCreatorPda(mint)` of
- * builds before the DeepSwap creator fee.
+ * every token (seed "pool_creator" alone). deep-amm compiles it in
+ * (`deep_keys::GRADUATION_PAYER`, `DEEP_GRADUATION_PAYER` below): for this payer
+ * `initialize_with_permission[_v1]` needs no Permission account, ignores an AmmConfig's
+ * `disable_create_pool`, and its Permission cannot be closed, so no deep-amm admin action can
+ * block a graduation.
  */
 export function graduationPayerPda(programId = DEEP_CURVE_PROGRAM_ID) {
   return pda([enc.encode("pool_creator")], programId);
 }
+
+/**
+ * `graduationPayerPda()` of deep-curve 7czUR…CDtA, the same on every cluster: the address
+ * deep-amm compiles in as `deep_keys::GRADUATION_PAYER` (pinned by packages/sdk tests and by
+ * programs/deep-curve tests).
+ */
+export const DEEP_GRADUATION_PAYER = new PublicKey("GwW8P2V5mxfPosGEwtcNuUuzx6FVdzPZrapApn8ufYZF");
 
 /** The deep-curve-owned PDA used as the Raydium pool_state (un-griefable). */
 export function graduationPoolPda(mint: PublicKey, programId = DEEP_CURVE_PROGRAM_ID) {
@@ -153,6 +162,61 @@ export interface ConfigParamsArgs {
   timelockSeconds: number;
   /** v2: launch fee in US cents, 0..=2000 (on-chain cap). Defaults to 0 (no fee). */
   launchFeeUsdCents?: number;
+  /**
+   * v3 (DEEP V1): protocol fee on SELLS, bps; `protocolFeeBps` is the BUY rate. When omitted
+   * the sell rate EQUALS `protocolFeeBps`. A caller that re-queues the current config must
+   * pass the decoded `sellProtocolFeeBps` through, or it resets the sell rate to the buy rate.
+   */
+  sellProtocolFeeBps?: number;
+  /**
+   * v3: the admin's CURRENT maximum reward rate a creator may choose for a NEW launch, bps.
+   * At most 500 (`MAX_REWARD_BPS`; InvalidRewardRate 6039 above it). Defaults to 0, which
+   * allows Standard launches only. On each side protocol + max(creatorFeeBps, maxRewardBps,
+   * reservedBps) must be <= 1000 (the on-chain 10% cap). Tokens already launched keep the
+   * rate their creator chose.
+   */
+  maxRewardBps?: number;
+  /** v3: reserved (stored, read by no instruction). Defaults to 0. */
+  reservedBps?: number;
+}
+
+/** Every `ConfigParamsArgs` field of a decoded Config or queued params, new fields included. */
+export function configParamsOf(c: {
+  feeRecipient: PublicKey;
+  migrationAuthority: PublicKey;
+  protocolFeeBps: number;
+  creatorFeeBps: number;
+  migrationFeeBps: number;
+  initialVirtualSol: bigint;
+  initialVirtualToken: bigint;
+  curveSupply: bigint;
+  tokenTotalSupply: bigint;
+  decimals: number;
+  raydiumAmmConfig: PublicKey;
+  timelockSeconds: number;
+  launchFeeUsdCents: number;
+  sellProtocolFeeBps: number;
+  maxRewardBps: number;
+  reservedBps: number;
+}): Required<ConfigParamsArgs> {
+  return {
+    feeRecipient: c.feeRecipient,
+    migrationAuthority: c.migrationAuthority,
+    protocolFeeBps: c.protocolFeeBps,
+    creatorFeeBps: c.creatorFeeBps,
+    migrationFeeBps: c.migrationFeeBps,
+    initialVirtualSol: c.initialVirtualSol,
+    initialVirtualToken: c.initialVirtualToken,
+    curveSupply: c.curveSupply,
+    tokenTotalSupply: c.tokenTotalSupply,
+    decimals: c.decimals,
+    raydiumAmmConfig: c.raydiumAmmConfig,
+    timelockSeconds: c.timelockSeconds,
+    launchFeeUsdCents: c.launchFeeUsdCents,
+    sellProtocolFeeBps: c.sellProtocolFeeBps,
+    maxRewardBps: c.maxRewardBps,
+    reservedBps: c.reservedBps,
+  };
 }
 
 /** Program-side bound (MAX_TIMELOCK_SECONDS) and the recommended mainnet value. */
@@ -174,6 +238,9 @@ export function encodeConfigParams(p: ConfigParamsArgs): Buffer {
     .pk(p.raydiumAmmConfig)
     .u32(p.timelockSeconds)
     .u16(p.launchFeeUsdCents ?? 0)
+    .u16(p.sellProtocolFeeBps ?? p.protocolFeeBps)
+    .u16(p.maxRewardBps ?? 0)
+    .u16(p.reservedBps ?? 0)
     .done();
 }
 
@@ -255,8 +322,13 @@ export function cancelConfigUpdateIx(
 // ───────────── v2: fee sweep + account migration ─────────────
 
 /**
- * PERMISSIONLESS: moves a curve's accrued protocol fees (trade + launch) to the
- * Treasury. Any fee payer may send it (e.g. a crank batching many curves).
+ * PERMISSIONLESS: moves a curve's accrued protocol fees (trade + launch) to the DEEP fee vault
+ * (DEEP V1), where `distribute` pays the builder 10% and the destinations 90%. Any fee payer may
+ * send it (e.g. a crank batching many curves). The vault must already be funded to its rent
+ * minimum (`initializeSplitterIx`).
+ *
+ * Breaking change (V1): the second argument is the program id again; the builder account of
+ * the 5/70 build is gone.
  */
 export function sweepProtocolFeesIx(
   mint: PublicKey,
@@ -264,12 +336,39 @@ export function sweepProtocolFeesIx(
 ): TransactionInstruction {
   return new TransactionInstruction({
     programId,
-    keys: [meta(curvePdaOf(mint, programId), true), meta(treasuryPdaOf(programId), true)],
+    keys: [meta(curvePdaOf(mint, programId), true), meta(feeVaultPda(programId), true)],
     data: Buffer.from(discriminator("global", "sweep_protocol_fees")),
   });
 }
 
-/** PERMISSIONLESS, idempotent: grows v1 Config (+ PendingConfig) to v2. Payer funds rent. */
+/**
+ * PERMISSIONLESS: moves a Holder token's accrued curve reward fees
+ * (`BondingCurve.holder_fees_unclaimed`) to its holder vault, the deep-rewards PDA
+ * `holderVaultPda(mint)`, from where deep-rewards pays holders. Works before and after
+ * graduation. Fails with `ZeroAmount` when nothing accrued (always the case while the curve
+ * reward rate is 0), and with `HolderVaultBelowRent` while the vault would end below the 0-byte
+ * rent minimum: run deep-rewards `init_distributor` for the mint first (it funds the reserve),
+ * or wait until the accrued amount alone covers it. The fees stay on the curve until then.
+ */
+export function sweepHolderFeesIx(
+  mint: PublicKey,
+  programId = DEEP_CURVE_PROGRAM_ID,
+  rewardsProgramId = DEEP_REWARDS_PROGRAM_ID,
+): TransactionInstruction {
+  return new TransactionInstruction({
+    programId,
+    keys: [
+      meta(curvePdaOf(mint, programId), true),
+      meta(holderVaultPda(mint, rewardsProgramId), true),
+    ],
+    data: Buffer.from(discriminator("global", "sweep_holder_fees")),
+  });
+}
+
+/**
+ * PERMISSIONLESS, idempotent: grows a v1 / v2 Config (+ PendingConfig) to v3. Payer funds rent.
+ * The new sell rate is set to the account's own protocol rate, the reward rates to 0.
+ */
 export function migrateConfigIx(
   payer: PublicKey,
   programId = DEEP_CURVE_PROGRAM_ID,
@@ -286,7 +385,11 @@ export function migrateConfigIx(
   });
 }
 
-/** PERMISSIONLESS, idempotent: grows a v1 BondingCurve to v2. Payer funds rent. */
+/**
+ * PERMISSIONLESS, idempotent: grows a v1 / v2 BondingCurve to v3. Payer funds rent. The token
+ * keeps its economics: sell rate = its protocol rate; reward model = Creator when it charges a
+ * creator fee, else Standard.
+ */
 export function migrateCurveIx(
   payer: PublicKey,
   mint: PublicKey,
@@ -378,7 +481,10 @@ export function claimCreatorFeesIx(
 export interface GraduationAccounts {
   /** `graduationPayerPda`: pays for the pool, never the pool's recorded creator. */
   poolCreator: PublicKey;
-  /** deep-amm Permission of `poolCreator`; graduation fails until the AMM admin creates it. */
+  /**
+   * deep-amm Permission PDA of `poolCreator`. Passed for the account layout only: deep-amm
+   * requires no permission from the graduation payer, so it does not have to exist.
+   */
   permission: PublicKey;
   poolState: PublicKey;
   lpMint: PublicKey;
@@ -414,41 +520,96 @@ export function graduationAccounts(
   };
 }
 
-export interface GraduateArgs {
-  migrationAuthority: PublicKey;
+/** `BondingCurve.reward_model` of a Holder token (`REWARD_MODEL.Holder` in @deepliquidity/curve-math). */
+const REWARD_MODEL_HOLDER = 2;
+
+/**
+ * The one address a token's DeepSwap reward fees can go to (deep-curve
+ * `reward_recipient_address`): the token's deep-rewards holder vault (`holderVaultPda(mint)`)
+ * for a Holder token, the token's creator otherwise. `graduate` requires exactly this account
+ * and records it as the pool's `pool_creator`. A Standard pool never accrues a reward; its
+ * creator is recorded all the same.
+ */
+export function rewardRecipientAddress(a: {
   mint: PublicKey;
-  /**
-   * The token's creator (`BondingCurve.creator`; the program rejects any other key). It is
-   * recorded as the DeepSwap pool's creator, which lets them collect the creator fee.
-   */
+  /** `BondingCurve.creator`. */
   creator: PublicKey;
+  /** `BondingCurve.reward_model`: 0 Standard, 1 Creator, 2 Holder. */
+  rewardModel: number;
+  rewardsProgramId?: PublicKey;
+}): PublicKey {
+  if (a.rewardModel !== 0 && a.rewardModel !== 1 && a.rewardModel !== REWARD_MODEL_HOLDER)
+    throw new RangeError("rewardModel must be 0 (Standard), 1 (Creator) or 2 (Holder)");
+  return a.rewardModel === REWARD_MODEL_HOLDER
+    ? holderVaultPda(a.mint, a.rewardsProgramId ?? DEEP_REWARDS_PROGRAM_ID)
+    : a.creator;
+}
+
+export interface GraduateArgs {
+  /**
+   * @deprecated Ignored. `graduate` is PERMISSIONLESS and has no signer account: any wallet
+   * can send it and pays only the network fee. `Config.migrationAuthority` is read by no
+   * instruction.
+   */
+  migrationAuthority?: PublicKey;
+  mint: PublicKey;
+  /** The token's creator (`BondingCurve.creator`). */
+  creator: PublicKey;
+  /**
+   * The token's reward model (`BondingCurve.reward_model`: 0 Standard, 1 Creator, 2 Holder).
+   * Default 0. It decides the reward recipient `graduate` requires
+   * (`rewardRecipientAddress`): the creator, or for a Holder token its holder vault. A wrong
+   * value fails the transaction (InvalidPool) and changes nothing, so read it from the curve.
+   */
+  rewardModel?: number;
+  /** Defaults to deep-rewards (the program the holder vault is derived under). */
+  rewardsProgramId?: PublicKey;
   /** Config.raydium_amm_config */
   ammConfig: PublicKey;
   programId?: PublicKey;
   /** Defaults to deep-amm. */
   cpSwapProgramId?: PublicKey;
-  /** deep-amm's build-time create-pool fee WSOL account (DEEP_AMM_CREATE_POOL_FEE_RECEIVER). */
+  /**
+   * deep-amm's build-time create-pool fee WSOL account (DEEP_AMM_CREATE_POOL_FEE_RECEIVER).
+   * DEEP V1: the fee vault's WSOL ATA (`feeVaultWsolAta()`), the default.
+   */
   createPoolFeeReceiver?: PublicKey;
 }
+
+/**
+ * PERMISSIONLESS `graduate`: 24 accounts, no signer. The sender of the transaction pays the
+ * network fee only and receives nothing; the pool payer PDA pays the pool costs and the
+ * temporary token accounts out of the migration fee, and every remainder goes to the DEEP fee
+ * vault. Position of `reward_recipient`: `GRADUATE_REWARD_RECIPIENT_INDEX`.
+ */
+export const GRADUATE_REWARD_RECIPIENT_INDEX = 5;
 
 export function graduateIx(a: GraduateArgs): TransactionInstruction {
   const pid = a.programId ?? DEEP_CURVE_PROGRAM_ID;
   const cp = a.cpSwapProgramId ?? DEEP_AMM_PROGRAM_ID;
-  const feeReceiver = a.createPoolFeeReceiver ?? DEEP_AMM_CREATE_POOL_FEE_RECEIVER.devnet;
-  if (!feeReceiver)
-    throw new Error("graduateIx: pass createPoolFeeReceiver (deep-amm's build-time fee account)");
+  const feeReceiver = a.createPoolFeeReceiver ?? feeVaultWsolAta(pid);
   const g = graduationAccounts(a.mint, pid, cp);
   const curve = curvePdaOf(a.mint, pid);
+  const rewardModel = a.rewardModel ?? 0;
+  const rewardRecipient = rewardRecipientAddress({
+    mint: a.mint,
+    creator: a.creator,
+    rewardModel,
+    rewardsProgramId: a.rewardsProgramId,
+  });
   return new TransactionInstruction({
     programId: pid,
     keys: [
-      meta(a.migrationAuthority, true, true),
       meta(configPdaOf(pid)),
-      meta(treasuryPdaOf(pid), true),
+      // The DEEP fee vault: receives everything that is not the pool's or the holders'.
+      meta(feeVaultPda(pid), true),
       meta(a.mint, true),
       meta(curve, true),
       meta(getAssociatedTokenAddressSync(a.mint, curve, true), true),
-      meta(a.creator),
+      // reward_recipient (formerly token_creator): recorded as the pool's creator. Writable
+      // only for a Holder token, so graduate can sweep the curve's holder fees to the vault
+      // (read-only, that sweep is skipped); a creator receives nothing here.
+      meta(rewardRecipient, rewardModel === REWARD_MODEL_HOLDER),
       meta(g.poolCreator, true),
       meta(g.creatorToken, true),
       meta(NATIVE_MINT),

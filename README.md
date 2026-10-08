@@ -5,7 +5,7 @@
 <h3 align="center">The TypeScript SDK for DEEP: a Solana launchpad and DEX in one.</h3>
 
 <p align="center">
-  <a href="https://devnet.deepliquidity.fun"><img alt="App (devnet)" src="https://img.shields.io/badge/App-devnet%20beta-00F0FF?style=for-the-badge&labelColor=0E141A" /></a>
+  <a href="https://deepliquidity.fun"><img alt="App" src="https://img.shields.io/badge/App-mainnet-00F0FF?style=for-the-badge&labelColor=0E141A" /></a>
   <a href="./docs/INTEGRATORS.md"><img alt="Integration guide" src="https://img.shields.io/badge/Guide-integrators-AEC6FF?style=for-the-badge&labelColor=0E141A" /></a>
   <a href="https://api.deepliquidity.fun/v1/openapi.json"><img alt="API" src="https://img.shields.io/badge/API-OpenAPI%203.1-34F6A8?style=for-the-badge&labelColor=0E141A" /></a>
   <a href="https://x.com/LaunchOnDL"><img alt="X @LaunchOnDL" src="https://img.shields.io/badge/X-%40LaunchOnDL-DDE3EC?style=for-the-badge&logo=x&logoColor=white&labelColor=0E141A" /></a>
@@ -14,19 +14,19 @@
 
 ---
 
-DEEP runs two Solana programs. **deep-curve** is the launchpad: every token starts on a bonding
+DEEP runs three Solana programs. **deep-curve** is the launchpad: every token starts on a bonding
 curve and graduates when the curve sells out. **DeepSwap** (deep-amm) is DEEP's own
 constant-product AMM: graduation seeds a pool there and burns its LP, and anyone can open pools
-for any two tokens. This repository has everything a wallet, trading terminal, bot or aggregator
-needs to support both.
+for any two tokens. **deep-rewards** pays a token's Holder Rewards to its holders. This repository
+has everything a wallet, trading terminal, bot or aggregator needs to support them.
 
 ## Packages
 
 | Package | What it does |
 | --- | --- |
-| [`@deepliquidity/sdk`](./packages/sdk) | PDAs, instruction builders (create, buy, sell, claim, swap, add/remove liquidity, create pool), account and event decoders, Token-2022 aware quotes, and the program IDLs |
+| [`@deepliquidity/sdk`](./packages/sdk) | PDAs, instruction builders (create, buy, sell, claim, swap, add/remove liquidity, create pool, claim holder rewards), account and event decoders, Token-2022 aware quotes, and the program IDLs |
 | [`@deepliquidity/curve-math`](./packages/curve-math) | The bonding-curve and fee maths in integer `bigint`, bit-for-bit identical to the on-chain program |
-| [`@deepliquidity/shared-types`](./packages/shared-types) | Types for the public DEEP API (tokens, trades, candles, pools, pairs, stocks) |
+| [`@deepliquidity/shared-types`](./packages/shared-types) | Types for the public DEEP API (tokens, trades, candles, pools, pairs, rewards, stocks) |
 
 Each package ships ESM with TypeScript declarations, works in Node ≥ 22 and in browser bundles,
 and has its readable source in `src/`.
@@ -37,11 +37,14 @@ and has its readable source in `src/`.
   slippage and deadlines, follow a token to graduation and its DeepSwap pool.
 - 🔁 **DEX**: quote and build swaps on any DeepSwap pool, including Token-2022 transfer fees and
   ScaledUiAmount multipliers; add and remove liquidity; create pools.
-- 💸 **Fees, exactly**: curve protocol and creator fees, the USD launch fee priced from Pyth, and
-  DeepSwap's pool fee, protocol share and creator fee, with the programs' own rounding.
+- 💸 **Fees, exactly**: DEEP's per-side fee on the curve and on DeepSwap, each token's and each
+  pool's own reward model (Standard, Creator Rewards or Holder Rewards) and rate, the LP share
+  and the USD launch fee priced from Pyth, with the programs' own rounding.
+- 🎁 **Holder Rewards**: read a token's reward rounds, verify a Merkle proof offline and build
+  the claim.
 - 📡 **Events**: decode `TokenCreated`, `Trade`, `Graduated` and DeepSwap `SwapEvent` straight
   from transaction logs.
-- 🧾 **IDLs**: `@deepliquidity/sdk/idl/deep_curve.json` and `@deepliquidity/sdk/idl/deep_amm.json`.
+- 🧾 **IDLs**: `@deepliquidity/sdk/idl/deep_curve.json`, `deep_amm.json` and `deep_rewards.json`.
 
 ## Quick start
 
@@ -63,10 +66,13 @@ keypair.
 
 ## Programs
 
-| Program | Devnet | Mainnet |
-| --- | --- | --- |
-| deep-curve | `7czURwVLkQpcF1HVhhZU5GGzvPA8YniogZY1BhZHCDtA` | not deployed |
-| DeepSwap (deep-amm) | `HCrCy6bzHhZ1b6bXwQAucEFkKXyzYMh3hgAR8UPrYSEP` | not deployed |
+The program ids are the same on mainnet-beta and devnet.
+
+| Program | Address |
+| --- | --- |
+| deep-curve | `7czURwVLkQpcF1HVhhZU5GGzvPA8YniogZY1BhZHCDtA` |
+| DeepSwap (deep-amm) | `HCrCy6bzHhZ1b6bXwQAucEFkKXyzYMh3hgAR8UPrYSEP` |
+| deep-rewards | `4z2KpxUcdNFXFpzxKtcmTv6aDMqE4CMLCdbYExLYeDE2` |
 
 Account layouts with byte offsets, PDA seeds, events, error codes, compute budgets and the
 differences from pump.fun and Raydium CPMM are in the **[integration guide](./docs/INTEGRATORS.md)**.
@@ -80,8 +86,8 @@ The npm packages are being prepared for release. Until then, use the compiled pa
 
 ## Status
 
-DEEP is in **devnet beta**. The programs are not deployed on mainnet and have not been audited
-yet. Nothing in these packages sends a transaction on its own.
+DEEP is live on **Solana mainnet-beta** since 8 October 2026, and on devnet for testing. The
+programs have **not been audited** yet. Nothing in these packages sends a transaction on its own.
 
 ## License
 
@@ -90,4 +96,4 @@ MIT, except code ported from Raydium cp-swap, which is Apache-2.0 (see [`NOTICE`
 
 ## Links
 
-[Website](https://deepliquidity.fun) · [App (devnet)](https://devnet.deepliquidity.fun) · [Docs](https://docs.deepliquidity.fun/docs) · [Blog](https://blog.deepliquidity.fun) · [Status](https://status.deepliquidity.fun) · [X](https://x.com/LaunchOnDL) · [Telegram](https://t.me/LaunchOnDL)
+[Website and app](https://deepliquidity.fun) · [Docs](https://docs.deepliquidity.fun/docs) · [Blog](https://blog.deepliquidity.fun) · [Status](https://status.deepliquidity.fun) · [X](https://x.com/LaunchOnDL) · [Telegram](https://t.me/LaunchOnDL)

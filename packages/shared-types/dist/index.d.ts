@@ -2,6 +2,25 @@
 export type DataSource = "chain" | "indexer" | "mock";
 export type TokenLifecycle = "bonding" | "graduating" | "graduated";
 export type DiscoveryCategory = "new" | "bonding" | "going-deep" | "near-graduation" | "graduated" | "trending" | "recent";
+/**
+ * DEEP V1 reward model of a token: chosen at `create_token`, stored on its bonding curve
+ * (`BondingCurve.reward_model`: 0 standard, 1 creator, 2 holder) and never changed afterwards.
+ */
+export type RewardModelId = "standard" | "creator" | "holder";
+export declare const REWARD_MODEL_IDS: readonly RewardModelId[];
+/** The fee terms a bonding curve snapshotted at launch, basis points, read from its account. */
+export interface CurveFeeSnapshot {
+    /** DEEP's fee on a buy (`BondingCurve.protocol_fee_bps`). */
+    buyProtocolFeeBps: number;
+    /** DEEP's fee on a sell (`sell_protocol_fee_bps`; equals the buy rate on a pre-v3 curve). */
+    sellProtocolFeeBps: number;
+    /**
+     * The curve's reward rate on both sides, on top of the protocol fee
+     * (`BondingCurve.creator_fee_bps`): to the creator for a standard / creator token, to the
+     * holder vault for a holder token.
+     */
+    rewardBps: number;
+}
 export interface TokenSocials {
     website?: string;
     /** X (Twitter) profile URL. */
@@ -55,6 +74,39 @@ export interface TokenSummary {
     linksUpdatedAt?: number | null;
     /** DEEP moderation hid this token's links (socials is then empty). */
     linksHidden?: true;
+    /**
+     * This is the DEEP platform's own token (DEEP), as set by a DEEP operator. At most one mint
+     * carries it at a time; look-alikes never do. Absent on mock data.
+     */
+    official?: true;
+    /**
+     * The token's reward model, from its on-chain curve account (v3) or its creation event.
+     * Absent while the curve account still has the pre-V1 layout (it stores no model) and on
+     * tokens whose curve has not been read yet. Appended field.
+     */
+    rewardModel?: RewardModelId;
+    /**
+     * The token's own reward rate, basis points per side: what its creator chose at launch
+     * (0 for a standard token), charged on the curve and on its DeepSwap graduation pool. From
+     * the creation event (`TokenCreated.reward_bps`) and then from the curve account, which wins;
+     * equal to `curveFees.rewardBps` once that is known. Absent on tokens created before the
+     * event carried it whose curve has not been read yet. Appended field.
+     */
+    rewardBps?: number;
+    /**
+     * The curve's own fee snapshot, read from its account. Absent until the curve has been read
+     * from chain. Appended field.
+     */
+    curveFees?: CurveFeeSnapshot;
+}
+/** The official-token record (admin API): which mint, the operator's note, when and by whom. */
+export interface OfficialToken {
+    mint: string;
+    note: string;
+    /** unix ms */
+    setAt: number;
+    /** The operator's wallet (admin session). */
+    by: string;
 }
 export type TradeSide = "buy" | "sell";
 export interface Trade {
@@ -109,15 +161,39 @@ export interface PoolSummary {
     graduatedAt?: number;
     /** 24h trade fees that stay in the pool for LPs, lamports. */
     lpFees24h?: string;
-    /** 24h protocol (+ fund) share of the trade fee, lamports. */
+    /**
+     * 24h protocol (+ fund) share of the trade fee, lamports: DEEP's protocol fee plus the DEEP
+     * builder's fund fee (builderFees24h). DEEP's own part is protocolFees24h - builderFees24h.
+     */
     protocolFees24h?: string;
+    /**
+     * 24h DEEP builder share of the trade fee (the AmmConfig fund fee, 166_667 / 1e6 of the
+     * trade fee, ~0.05% of volume), lamports. Part of protocolFees24h, never added to it.
+     * Appended field; absent from older API versions.
+     */
+    builderFees24h?: string;
     /**
      * 24h creator fees, lamports: charged on top of the trade fee, so not part of fees24h,
      * lpFees24h or protocolFees24h. The pool's creator and DEEP share it when it is settled on
      * chain (AmmConfig.creator_fee_share_rate). Traders paid fees24h + creatorFees24h in total.
      * 0 for swaps indexed before it was recorded.
+     *
+     * The name is too narrow under DEEP V1 and is kept for existing consumers: it also counts a
+     * V1 pool's reward fees whoever receives them, so on a Holder Rewards pool it is money paid
+     * to the token's holders. Prefer creatorRewardFees24h / holderRewardFees24h.
      */
     creatorFees24h?: string;
+    /**
+     * DEEP V1 Creator Rewards pool: its 24h reward fees (= rewardFees24h), 100% the reward
+     * recipient's, lamports. "0" on any other pool. Absent until the pool's fee terms are read.
+     */
+    creatorRewardFees24h?: string;
+    /**
+     * DEEP V1 Holder Rewards pool: its 24h reward fees (= rewardFees24h), paid to the token's
+     * holder vault for its holders, lamports. "0" on any other pool. Absent until the pool's
+     * fee terms are read.
+     */
+    holderRewardFees24h?: string;
     /**
      * Indexed TVL in lamports: the pool's SOL reserves × 2 (a constant-product pool holds equal
      * value on both sides at its own price). An estimate of pool value, never a market cap.
@@ -129,6 +205,64 @@ export interface PoolSummary {
     priceSol?: number;
     /** LP state verified on chain; null when it could not be read (RPC error / pool missing). */
     lp?: PoolLpStatus | null;
+    /**
+     * 24h reward fees of DEEP V1 swaps, lamports: the pool's own reward rate, 100% its reward
+     * recipient's (`fees.rewardRecipient`). A PART of creatorFees24h (which also counts a legacy
+     * pool's creator fee, shared with DEEP), never added to it. "0" on a legacy pool. Appended
+     * field; absent from older API versions.
+     */
+    rewardFees24h?: string;
+    /**
+     * The pool's own fee terms, read from its PoolState and AmmConfig (see PairFees). Absent until
+     * the pair indexer has read the pool.
+     */
+    fees?: PairFees;
+}
+/** One side of a pool's fee, millionths (per 1e6) of the amount it is charged on. */
+export interface PairSideFees {
+    /** Stays in the pool for liquidity providers. */
+    lp: number;
+    /** DEEP's part (on a legacy pool: the protocol and fund shares of the trade fee). */
+    protocol: number;
+    /**
+     * DEEP V1: the pool's own reward rate, 100% its reward recipient's. Legacy: the creator fee
+     * when the pool has it enabled (shared with DEEP when it is settled).
+     */
+    reward: number;
+    /** lp + protocol + reward: what a trader pays on this side. */
+    total: number;
+}
+/**
+ * A DeepSwap pool's own fee terms, read from its PoolState and its AmmConfig (SDK
+ * `cpmmPoolFeeRates`). The fee model, reward model, reward rate, recipient and quote token are
+ * fixed at pool creation; the LP and DEEP rates are the AmmConfig's and can change.
+ */
+export interface PairFees {
+    /**
+     * "legacy": upstream cp-swap semantics (trade fee on the input, optional creator fee), both
+     * sides equal. "v1": DEEP V1, side-dependent, every part taken in the quote token.
+     */
+    feeModel: "legacy" | "v1";
+    /** A swap whose INPUT is the quote token (on a legacy pool: any swap). */
+    buy: PairSideFees;
+    /** A swap whose OUTPUT is the quote token (on a legacy pool: the same as `buy`). */
+    sell: PairSideFees;
+    /** V1 only: who the reward part is for. Absent on a legacy pool. */
+    rewardModel?: RewardModelId;
+    /**
+     * V1 only: the address the reward part is paid to (`PoolState.pool_creator`): the token's or
+     * pool's creator, or the token's deep-rewards holder vault for a holder pool.
+     */
+    rewardRecipient?: string;
+    /** V1 only: the mint every fee part is taken in (SOL's wrapped mint on a TOKEN/SOL pool). */
+    quoteMint?: string;
+}
+/** 24h fees of a DEEP V1 pair, base units of `mint` (the pool's quote token). */
+export interface PairFees24h {
+    mint: string;
+    lp: string;
+    protocol: string;
+    reward: string;
 }
 /**
  * On-chain LP state of a graduation pool.
@@ -178,15 +312,32 @@ export interface ProtocolStats {
     poolVolume24h: string;
     /** Protocol fees taken by bonding-curve trades in 24h. */
     curveProtocolFees24h: string;
+    /**
+     * Reward fees taken by bonding-curve trades in 24h that go to token creators / to holder
+     * vaults (TradeEvent.creator_fee / holder_fee), lamports. Appended fields.
+     */
+    curveCreatorFees24h?: string;
+    curveHolderFees24h?: string;
     poolLpFees24h: string;
     /** DEEP's (+ fund) share of DeepSwap trade fees in 24h. Excludes its share of creator fees. */
     poolProtocolFees24h: string;
+    /**
+     * The fund (DEEP builder) part of poolProtocolFees24h, lamports. Appended field. The curve's
+     * builder share (5/70 of the curve protocol fees) is paid at sweep time, not per trade, so
+     * it is not estimated here.
+     */
+    poolBuilderFees24h?: string;
     /**
      * DeepSwap creator fees in 24h (see PoolSummary.creatorFees24h): on top of, and not part
      * of, poolLpFees24h and poolProtocolFees24h. Undivided: the creator/DEEP split happens at
      * settlement.
      */
     poolCreatorFees24h?: string;
+    /**
+     * The part of poolCreatorFees24h charged by DEEP V1 swaps: each pool's own reward rate, 100%
+     * its reward recipient's (never shared with DEEP). Appended field.
+     */
+    poolRewardFees24h?: string;
     /** Σ over DeepSwap pools of SOL reserves × 2 (see PoolSummary.tvl). */
     poolTvl: string;
     /** Σ real SOL reserves held by bonding curves that have not graduated. */
@@ -211,6 +362,8 @@ export interface TokenLinks {
     website: string | null;
     discord: string | null;
 }
+/** Where a token's displayed image comes from; DEEP's storage is the only place it is loaded from. */
+export type TokenImageSource = "deep" | "ipfs" | "none";
 /** GET /v1/tokens/:mint/stats */
 export interface TokenStats {
     mint: string;
@@ -245,7 +398,14 @@ export interface TokenStats {
     /** Sanitized fields from the token's metadata JSON (fetched server-side). */
     metadata: {
         description: string | null;
+        /** Always a URL on DEEP's storage (its IPFS gateway), or null: never a creator's host. */
         image: string | null;
+        /**
+         * Why there is (no) image. "deep": the metadata names an object on DEEP's storage. "ipfs":
+         * it names an IPFS CID elsewhere that DEEP's node holds, shown through DEEP's gateway.
+         * "none": no image, or one hosted somewhere DEEP does not load images from.
+         */
+        imageSource: TokenImageSource;
         links: TokenLinks;
         /** "uri": fetched from the metadata URI; "indexer": stored copy; "none": unavailable. */
         source: "uri" | "indexer" | "none";
@@ -304,7 +464,7 @@ export interface MonitorStatus {
     }[];
 }
 export interface ProgramStatus {
-    name: "deep-curve" | "deep-amm";
+    name: "deep-curve" | "deep-amm" | "deep-rewards";
     programId: string;
     deployed: boolean;
     upgradeAuthority: string | null;
@@ -336,6 +496,42 @@ export interface ServiceStatus {
     }[];
     programs: ProgramStatus[] | null;
     programsError?: string;
+    asOf: number;
+}
+/** A DEEP multisig proposal that still needs attention (GET /v1/governance). */
+export interface GovernanceProposal {
+    /** Squads transaction index (decimal string: a u64). */
+    index: string;
+    /** Squads proposal status, or "no-proposal" for a transaction not yet proposed. */
+    status: string;
+    /** unix seconds the status was entered; null while executing or before a proposal exists */
+    statusAt: number | null;
+    approvals: number;
+    rejections: number;
+    kind: "vault" | "config" | "batch" | "unknown";
+    /** What the transaction does, e.g. the programs and instructions it calls. */
+    summary: string;
+    /** A later config change made it stale: it can no longer execute. */
+    stale: boolean;
+    /** unix seconds the time lock releases it (approved proposals only). */
+    executableAt: number | null;
+}
+/**
+ * GET /v1/governance: the DEEP Squads multisig as the API watches it, so anyone can see a
+ * pending proposal before its time lock releases (docs/MAINNET.md step 0.3). `enabled` is
+ * false when the API watches no multisig on this cluster; everything else is then null.
+ */
+export interface GovernanceStatus {
+    enabled: boolean;
+    /** The watch's last poll failed; `pending` may be stale. */
+    failing: boolean;
+    /** unix ms of the last successful poll. */
+    lastRunAt: number | null;
+    cluster: string | null;
+    multisig: string | null;
+    threshold: number | null;
+    timeLockSeconds: number | null;
+    pending: GovernanceProposal[];
     asOf: number;
 }
 /** Token-2022 extensions on a mint, by their spl-token `ExtensionType` name (e.g. "TransferFeeConfig"). */
@@ -401,6 +597,18 @@ export interface PairSummary {
     /** Slot of the reserves read. */
     slot: number;
     source: DataSource;
+    /**
+     * The pool's own fee per side with its LP / DEEP / reward parts (see PairFees). Appended
+     * field: absent on a pair stored before it was indexed (until its next refresh); then
+     * `tradeFeeRate` is all that is known.
+     */
+    fees?: PairFees;
+    /**
+     * DEEP V1 pools only: the LP, DEEP and reward fees of the last 24h, summed from each swap's
+     * `SwapFeesV1` event (exact, in the quote token). Absent on a legacy pool, whose fees are on
+     * the input token of each swap.
+     */
+    fees24h?: PairFees24h;
 }
 export interface PairTrade {
     signature: string;
@@ -413,13 +621,29 @@ export interface PairTrade {
     /** Amounts that moved, base units, without Token-2022 transfer fees. */
     amount0: string;
     amount1: string;
-    /** Trade fee charged on the input token, base units. */
+    /**
+     * Legacy pool: the trade fee, charged on the input token, base units. DEEP V1 pool (`v1`
+     * present): the LP + DEEP parts, in the pool's quote token (see `v1`).
+     */
     fee: string;
     /** token1 per whole token0 after the swap. */
     price: number;
     slot: number;
     timestamp: number;
     source: DataSource;
+    /**
+     * DEEP V1 swaps only: the exact fee parts from the swap's `SwapFeesV1` event, all in the
+     * pool's quote token (`feeMint`). On a sell the quote amount is already net of all three.
+     */
+    v1?: {
+        /** True when the input was the quote token (the fee came off the input). */
+        isBuy: boolean;
+        feeMint: string;
+        lpFee: string;
+        protocolFee: string;
+        rewardFee: string;
+        rewardModel: RewardModelId;
+    };
 }
 /**
  * GET /v1/pairs                         → PairSummary[]
@@ -454,7 +678,7 @@ export interface TvlPoint {
  */
 export type LinksSource = "metadata" | "creator";
 /**
- * POST /v1/tokens/:mint/links. The signed text is `buildLinksMessage` from @deepliquidity/sdk over
+ * POST /v1/tokens/:mint/links. The signed text is `buildLinksMessage` from @deep/sdk over
  * { mint, cluster, links, issuedAt, nonce }; see docs/ARCHITECTURE.md.
  */
 export interface UpdateTokenLinksRequest {
@@ -484,3 +708,91 @@ export interface UpdateTokenLinksResponse {
  */
 export type UpdateTokenLinksError = "invalid_body" | "invalid_link" | "bad_issued_at" | "stale_message" | "bad_signature" | "not_creator" | "links_hidden" | "not_found" | "nonce_used" | "superseded" | "rpc_unavailable" | "chain_read_failed";
 export * from "./stocks.js";
+export * from "./rewards.js";
+/** One 90% destination of the fee splitter. Amounts in lamports, decimal strings. */
+export interface SplitterDestinationStatus {
+    wallet: string;
+    /** Share of the 90% remainder, bps of 10_000. */
+    bps: number;
+    /** Due but unpaid (the wallet could not receive yet). */
+    owed: string;
+    /** Paid since the wallet was added. */
+    paidTotal: string;
+}
+/** One `distribute` (RevenueDistributed event), as indexed. */
+export interface RevenueDistribution {
+    signature: string;
+    /** Event index within the transaction's fee events. */
+    index: number;
+    slot: number;
+    /** Unix seconds (the event's timestamp). */
+    timestamp: number;
+    /** New revenue split this round. */
+    base: string;
+    builderAmount: string;
+    builderOwed: string;
+    builderPaidTotal: string;
+    baseTotal: string;
+    wallets: string[];
+    amounts: string[];
+    owed: string[];
+    retained: string;
+    wsolUnwrapped: string;
+}
+/**
+ * GET /splitter: the DEEP fee vault and splitter, read from chain (and the indexed history).
+ * Every number is real chain data; `initialized: false` until `initialize_splitter` ran.
+ */
+export interface SplitterStatus {
+    source: "chain";
+    cluster: string;
+    feeVault: string;
+    feeVaultWsol: string;
+    builder: string | null;
+    /** The builder's compiled-in share of all DEEP revenue, bps (1000 = 10%). */
+    builderSplitBps: number;
+    initialized: boolean;
+    /** fee_vault lamports (rent included) and the WSOL ATA's token amount. */
+    vaultLamports: string;
+    vaultWsol: string;
+    /** What the next distribute would split now: vault + WSOL − rent − owed − carried dust. */
+    pendingRevenue: string;
+    minDistributeLamports: string;
+    baseTotal: string;
+    builderPaidTotal: string;
+    builderOwed: string;
+    retained: string;
+    destinationsPaidTotal: string;
+    distributions: number;
+    /** Unix seconds of the last distribute, null before the first. */
+    lastDistributeAt: number | null;
+    /** Next scheduled keeper run (00:00 / 12:00 America/Los_Angeles), ISO-8601. */
+    nextDistributionAt: string;
+    destinations: SplitterDestinationStatus[];
+    /** A queued destination change (timelocked), or null. */
+    pending: {
+        eta: number;
+        queuedAt: number;
+        destinations: {
+            wallet: string;
+            bps: number;
+        }[];
+        minDistributeLamports: string;
+    } | null;
+    /** Latest distributions, newest first (indexed RevenueDistributed events). */
+    history: RevenueDistribution[];
+}
+/** One deep-curve `sweep_holder_fees` (HolderFeesSwept event), as indexed. */
+export interface HolderFeeSweep {
+    signature: string;
+    /** Event index within the transaction's fee events. */
+    index: number;
+    slot: number;
+    /** Unix seconds (block time). */
+    timestamp: number;
+    mint: string;
+    /** deep-rewards PDA ["holder_vault", mint] that received the lamports. */
+    holderVault: string;
+    /** Lamports moved, decimal string. */
+    amount: string;
+}

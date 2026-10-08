@@ -4,7 +4,7 @@
  * Layouts must match the `#[event]` structs in programs/deep-curve/src/lib.rs.
  */
 import { PublicKey } from "@solana/web3.js";
-import { CONFIG_PARAMS_SIZE, readConfigParams } from "./config.js";
+import { CONFIG_PARAMS_SIZE, CONFIG_PARAMS_V2_SIZE, readConfigParams, } from "./config.js";
 import { DEEP_CURVE_PROGRAM_ID, discriminator } from "./constants.js";
 class Reader {
     b;
@@ -17,6 +17,20 @@ class Reader {
     need(n) {
         if (this.o + n > this.b.length)
             throw new RangeError("event data truncated");
+    }
+    /** Bytes not read yet: how appended (newer) fields are detected. */
+    remaining() {
+        return this.b.length - this.o;
+    }
+    u8() {
+        this.need(1);
+        return this.b[this.o++];
+    }
+    u16() {
+        this.need(2);
+        const x = this.v.getUint16(this.o, true);
+        this.o += 2;
+        return x;
     }
     pubkey() {
         this.need(32);
@@ -43,10 +57,13 @@ class Reader {
             throw new RangeError("invalid bool");
         return x === 1;
     }
+    /** ConfigParams as the LAST field of an event: v3 (147 B), or v2 (141 B) on older events. */
     params() {
-        this.need(CONFIG_PARAMS_SIZE);
-        const p = readConfigParams(this.b, this.o);
-        this.o += CONFIG_PARAMS_SIZE;
+        const v3 = this.remaining() >= CONFIG_PARAMS_SIZE;
+        const size = v3 ? CONFIG_PARAMS_SIZE : CONFIG_PARAMS_V2_SIZE;
+        this.need(size);
+        const p = readConfigParams(this.b, this.o, v3 ? 3 : 2);
+        this.o += size;
         return p;
     }
     string() {
@@ -71,6 +88,8 @@ const DECODERS = {
         uri: r.string(),
         curveSupply: r.u64(),
         tokenTotalSupply: r.u64(),
+        ...(r.remaining() >= 1 ? { rewardModel: r.u8() } : {}),
+        ...(r.remaining() >= 2 ? { rewardBps: r.u16() } : {}),
     }),
     TradeEvent: (r) => ({
         name: "TradeEvent",
@@ -86,6 +105,8 @@ const DECODERS = {
         realSolReserves: r.u64(),
         realTokenReserves: r.u64(),
         timestamp: r.i64(),
+        // appended in DEEP V1 Phase 2 (u8 reward_model, u64 holder_fee); older events end here
+        ...(r.remaining() >= 9 ? { rewardModel: r.u8(), holderFee: r.u64() } : { holderFee: 0n }),
     }),
     CurveCompleted: (r) => ({ name: "CurveCompleted", mint: r.pubkey(), realSolReserves: r.u64() }),
     CreatorFeesClaimed: (r) => ({
@@ -170,8 +191,68 @@ export function parseEventsFromLogs(logs, programId = DEEP_CURVE_PROGRAM_ID) {
 const FEE_DISC = {
     LaunchFeeCharged: hex(discriminator("event", "LaunchFeeCharged")),
     ProtocolFeesSwept: hex(discriminator("event", "ProtocolFeesSwept")),
+    HolderFeesSwept: hex(discriminator("event", "HolderFeesSwept")),
+    BuilderFeePaid: hex(discriminator("event", "BuilderFeePaid")),
+    RevenueDistributed: hex(discriminator("event", "RevenueDistributed")),
+    SplitterUpdated: hex(discriminator("event", "SplitterUpdated")),
+    SplitterUpdateQueued: hex(discriminator("event", "SplitterUpdateQueued")),
+    SplitterUpdateCancelled: hex(discriminator("event", "SplitterUpdateCancelled")),
+    VaultTokensWithdrawn: hex(discriminator("event", "VaultTokensWithdrawn")),
 };
-/** Decode a LaunchFeeCharged or ProtocolFeesSwept payload (discriminator included), else null. */
+/** Sequential Borsh reader over an event payload (after the discriminator). */
+function borsh(b) {
+    const v = new DataView(b.buffer, b.byteOffset, b.byteLength);
+    let o = 0;
+    const need = (n) => {
+        if (o + n > b.length)
+            throw new RangeError("event data truncated");
+    };
+    const r = {
+        u16: () => {
+            need(2);
+            const x = v.getUint16(o, true);
+            o += 2;
+            return x;
+        },
+        u32: () => {
+            need(4);
+            const x = v.getUint32(o, true);
+            o += 4;
+            return x;
+        },
+        u64: () => {
+            need(8);
+            const x = v.getBigUint64(o, true);
+            o += 8;
+            return x;
+        },
+        i64: () => {
+            need(8);
+            const x = v.getBigInt64(o, true);
+            o += 8;
+            return x;
+        },
+        u128: () => {
+            const lo = r.u64();
+            const hi = r.u64();
+            return (hi << 64n) | lo;
+        },
+        pk: () => {
+            need(32);
+            const k = new PublicKey(b.slice(o, o + 32)).toBase58();
+            o += 32;
+            return k;
+        },
+        vec: (item) => {
+            const n = r.u32();
+            if (n > 64)
+                throw new RangeError("event vec too long");
+            return Array.from({ length: n }, item);
+        },
+    };
+    return r;
+}
+/** Decode a deep-curve fee/splitter event payload (with discriminator), else null. */
 export function decodeFeeEvent(data) {
     if (data.length < 8)
         return null;
@@ -198,9 +279,78 @@ export function decodeFeeEvent(data) {
             throw new RangeError("event data truncated");
         return { name: "ProtocolFeesSwept", mint: pk(0), amount: v.getBigUint64(32, true) };
     }
+    if (d === FEE_DISC.HolderFeesSwept) {
+        if (b.length < 72)
+            throw new RangeError("event data truncated");
+        return {
+            name: "HolderFeesSwept",
+            mint: pk(0),
+            holderVault: pk(32),
+            amount: v.getBigUint64(64, true),
+        };
+    }
+    if (d === FEE_DISC.BuilderFeePaid) {
+        if (b.length < 56)
+            throw new RangeError("event data truncated");
+        return {
+            name: "BuilderFeePaid",
+            mint: pk(0),
+            base: v.getBigUint64(32, true),
+            builderAmount: v.getBigUint64(40, true),
+            treasuryAmount: v.getBigUint64(48, true),
+        };
+    }
+    if (d === FEE_DISC.RevenueDistributed) {
+        const r = borsh(b);
+        return {
+            name: "RevenueDistributed",
+            base: r.u64(),
+            retainedIn: r.u64(),
+            builderAmount: r.u64(),
+            builderOwed: r.u64(),
+            builderPaidTotal: r.u64(),
+            baseTotal: r.u128(),
+            wallets: r.vec(r.pk),
+            amounts: r.vec(r.u64),
+            owed: r.vec(r.u64),
+            retained: r.u64(),
+            wsolUnwrapped: r.u64(),
+            timestamp: r.i64(),
+        };
+    }
+    if (d === FEE_DISC.SplitterUpdated) {
+        const r = borsh(b);
+        return {
+            name: "SplitterUpdated",
+            wallets: r.vec(r.pk),
+            bps: r.vec(r.u16),
+            minDistributeLamports: r.u64(),
+        };
+    }
+    if (d === FEE_DISC.SplitterUpdateQueued) {
+        const r = borsh(b);
+        const eta = r.i64();
+        const queuedAt = r.i64();
+        const dests = r.vec(() => ({ wallet: r.pk(), bps: r.u16() }));
+        return {
+            name: "SplitterUpdateQueued",
+            eta,
+            queuedAt,
+            wallets: dests.map((x) => x.wallet),
+            bps: dests.map((x) => x.bps),
+            minDistributeLamports: r.u64(),
+        };
+    }
+    if (d === FEE_DISC.SplitterUpdateCancelled) {
+        return { name: "SplitterUpdateCancelled", eta: borsh(b).i64() };
+    }
+    if (d === FEE_DISC.VaultTokensWithdrawn) {
+        const r = borsh(b);
+        return { name: "VaultTokensWithdrawn", mint: r.pk(), recipient: r.pk(), amount: r.u64() };
+    }
     return null;
 }
-/** LaunchFeeCharged / ProtocolFeesSwept emitted by `programId` itself (same spoofing rules). */
+/** deep-curve fee/splitter events emitted by `programId` itself (same spoofing rules). */
 export function parseFeeEventsFromLogs(logs, programId = DEEP_CURVE_PROGRAM_ID) {
     const pid = programId.toBase58();
     const stack = [];

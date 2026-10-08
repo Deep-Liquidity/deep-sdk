@@ -31,14 +31,5 @@
   },
   "publishConfig": {
     "access": "public"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Deep-Liquidity/deep-sdk.git",
-    "directory": "packages/shared-types"
-  },
-  "homepage": "https://github.com/Deep-Liquidity/deep-sdk/tree/main/packages/shared-types",
-  "bugs": {
-    "url": "https://github.com/Deep-Liquidity/deep-sdk/issues"
   }
 }

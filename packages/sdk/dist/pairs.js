@@ -7,9 +7,9 @@
 import { Buffer } from "buffer";
 import { ExtensionType, getExtensionData, getExtensionTypes, getScaledUiAmountConfig, getTransferHook, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, unpackMint, } from "@solana/spl-token";
 import { PublicKey } from "@solana/web3.js";
+import { swapReservesAfter, } from "./amm-events.js";
 import { discriminator } from "./constants.js";
 import { DEEP_AMM_FEES } from "./deep-amm.js";
-import { CPMM_FEE_DENOMINATOR } from "./raydium-cpmm.js";
 // ───────────── discovery ─────────────
 /**
  * getProgramAccounts filter matching every PoolState account of a cp-swap program. Only the
@@ -140,20 +140,21 @@ export function shortMint(mint) {
  * arithmetic as toPoolSwap (the protocol, fund and creator slices leave the reserves, with
  * the program's floor rounding) but with no SOL assumption. Null when the event's mints are
  * not the pool's or its numbers are inconsistent.
+ *
+ * DEEP V1 pools: pass the swap's `SwapFeesV1` as `feesV1` (`parseAmmSwapEventsWithSource`
+ * pairs them). `rates` is then not used: the DEEP and reward parts leave the reserves on the
+ * quote side in both directions, and the result carries the breakdown in `v1`. Null when
+ * `feesV1` does not belong to `e`. Without it the legacy arithmetic applies unchanged, which
+ * is wrong for a V1 swap.
  */
-export function toPairSwap(e, pool, rates = DEEP_AMM_FEES) {
+export function toPairSwap(e, pool, rates = DEEP_AMM_FEES, feesV1) {
     const zeroForOne = e.inputMint.equals(pool.token0Mint) && e.outputMint.equals(pool.token1Mint);
     if (!zeroForOne && !(e.inputMint.equals(pool.token1Mint) && e.outputMint.equals(pool.token0Mint)))
         return null;
-    const cut = (rate) => (e.tradeFee * rate) / CPMM_FEE_DENOMINATOR;
-    const inputAfter = e.inputVaultBefore +
-        e.inputAmount -
-        cut(rates.protocolFeeRate) -
-        cut(rates.fundFeeRate) -
-        (e.creatorFeeOnInput ? e.creatorFee : 0n);
-    const outputAfter = e.outputVaultBefore - e.outputAmount - (e.creatorFeeOnInput ? 0n : e.creatorFee);
-    if (inputAfter < 0n || outputAfter <= 0n)
+    const after = swapReservesAfter(e, rates, feesV1);
+    if (!after)
         return null;
+    const [inputAfter, outputAfter] = after;
     return {
         zeroForOne,
         amount0: zeroForOne ? e.inputAmount : e.outputAmount,
@@ -161,6 +162,18 @@ export function toPairSwap(e, pool, rates = DEEP_AMM_FEES) {
         fee: e.tradeFee,
         reserve0After: zeroForOne ? inputAfter : outputAfter,
         reserve1After: zeroForOne ? outputAfter : inputAfter,
+        ...(feesV1
+            ? {
+                v1: {
+                    isBuy: feesV1.isBuy,
+                    feeOnToken0: feesV1.quoteMint.equals(pool.token0Mint),
+                    lpFee: feesV1.lpFee,
+                    protocolFee: feesV1.protocolFee,
+                    rewardFee: feesV1.rewardFee,
+                    rewardModel: feesV1.rewardModel,
+                },
+            }
+            : {}),
     };
 }
 /** token1 per whole token0 at the given raw reserves. Presentation only, never for amounts. */

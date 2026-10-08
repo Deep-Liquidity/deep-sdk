@@ -2,7 +2,7 @@
  * Detect launches, trades, curve completion, graduation and DeepSwap swaps from chain logs:
  * `onLogs` subscriptions on both programs, decoded with the SDK. Read-only.
  *
- *   pnpm --filter @deepliquidity/sdk exec tsx examples/watch-launches.ts [--seconds 60] [--backfill 10] [--rpc <url>] [--ws <url>]
+ *   pnpm --filter @deep/sdk exec tsx examples/watch-launches.ts [--seconds 60] [--backfill 10] [--rpc <url>] [--ws <url>]
  *
  * --backfill N first decodes the last N transactions of each program (getSignaturesForAddress +
  * getTransaction), so there is output even when nothing happens during the watch window.

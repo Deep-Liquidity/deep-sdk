@@ -33,14 +33,5 @@
   },
   "publishConfig": {
     "access": "public"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Deep-Liquidity/deep-sdk.git",
-    "directory": "packages/curve-math"
-  },
-  "homepage": "https://github.com/Deep-Liquidity/deep-sdk/tree/main/packages/curve-math",
-  "bugs": {
-    "url": "https://github.com/Deep-Liquidity/deep-sdk/issues"
   }
 }

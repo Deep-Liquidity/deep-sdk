@@ -3,7 +3,7 @@
  * DOWN), with the program's LP math, SIMULATED on devnet in one transaction. Nothing is signed
  * or sent.
  *
- *   pnpm --filter @deepliquidity/sdk exec tsx examples/deepswap-liquidity.ts [--mint <graduated mint> | --pool <pool>] \
+ *   pnpm --filter @deep/sdk exec tsx examples/deepswap-liquidity.ts [--mint <graduated mint> | --pool <pool>] \
  *     [--payer <public key>] [--rpc <url>]
  *
  * So that it runs from any funded key, the transaction first buys 0.01 SOL of the token, deposits

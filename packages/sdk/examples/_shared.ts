@@ -31,7 +31,7 @@ export function args<T extends NonNullable<ParseArgsConfig["options"]>>(options:
   }).values;
 }
 
-/** A devnet connection. The DEEP programs are not deployed on mainnet, so anything else is refused. */
+/** A devnet connection. The examples are devnet material, so any other cluster is refused. */
 export async function devnet(rpc?: string): Promise<Connection> {
   const conn = new Connection(rpc ?? process.env.SOLANA_RPC_URL ?? clusterApiUrl("devnet"), {
     commitment: "confirmed",

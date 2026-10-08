@@ -4,6 +4,7 @@ import {
   CurveMathError,
   type CurveState,
   type FeeConfig,
+  solInForTokens,
   validateFees,
 } from "./math.js";
 
@@ -47,13 +48,82 @@ export const DEFAULT_LAUNCH_PARAMS: LaunchParams = {
 export function validateLaunchParams(p: LaunchParams): void {
   validateFees(p.fees);
   if (p.decimals < 0 || p.decimals > 9) throw new CurveMathError("InvalidParams", "decimals 0–9");
-  if (p.curveSupply <= 0n || p.curveSupply > p.tokenTotalSupply)
-    throw new CurveMathError("InvalidParams", "curveSupply must be in (0, totalSupply]");
+  if (p.curveSupply <= 0n || p.curveSupply >= p.tokenTotalSupply)
+    throw new CurveMathError(
+      "InvalidParams",
+      "curveSupply must be in (0, totalSupply): tokens must be left for the pool",
+    );
   if (p.initialVirtualToken <= p.curveSupply)
     throw new CurveMathError("InvalidParams", "initialVirtualToken must exceed curveSupply");
   if (p.initialVirtualSol <= 0n) throw new CurveMathError("InvalidParams", "initialVirtualSol > 0");
   if (p.migrationFeeBps < 0n || p.migrationFeeBps > 500n)
     throw new CurveMathError("InvalidParams", "migrationFeeBps 0–500");
+  validateGraduationParams(
+    p.initialVirtualSol,
+    p.initialVirtualToken,
+    p.curveSupply,
+    p.tokenTotalSupply,
+    p.migrationFeeBps,
+  );
+}
+
+/**
+ * deep-amm locks the first 100 LP units of a new pool: the initial liquidity
+ * `floor(sqrt(amount0 * amount1))` must be above it.
+ */
+export const MIN_POOL_LIQUIDITY = 100n;
+
+const U64_MAX = (1n << 64n) - 1n;
+
+/**
+ * Launch parameters under which EVERY curve can graduate. Mirrors deep-curve
+ * `math::validate_graduation_params` exactly (shared vectors: `graduationParams` in
+ * fixtures/curve-vectors.json); the program applies it to every Config.
+ *
+ * - `0 < curveSupply < tokenTotalSupply`: tokens are left for the pool;
+ * - `initialVirtualToken > curveSupply`, `initialVirtualSol > 0`;
+ * - the graduation allocation of a completed curve has SOL and tokens for the pool, and enough
+ *   of both for deep-amm's minimum liquidity, whatever path the curve took.
+ *
+ * The check is made on the completed curve that raised the LEAST SOL. Trades only ever round
+ * against the trader, so `virtualSol * virtualToken` never decreases and a completed curve holds
+ * at least `solInForTokens(initialVirtualSol, initialVirtualToken, curveSupply)`. `lpSol` does
+ * not decrease when more is raised. `lpTokens` can, by rounding only, by less than
+ * `virtualToken / virtualSol + 1`, so that much is taken off before checking.
+ */
+export function validateGraduationParams(
+  initialVirtualSol: bigint,
+  initialVirtualToken: bigint,
+  curveSupply: bigint,
+  tokenTotalSupply: bigint,
+  migrationFeeBps: bigint,
+): void {
+  const fail = (why: string) => new CurveMathError("InvalidParams", why);
+  for (const v of [initialVirtualSol, initialVirtualToken, curveSupply, tokenTotalSupply])
+    if (v < 0n || v > U64_MAX)
+      throw new CurveMathError("Overflow", "launch param out of u64 range");
+  if (
+    initialVirtualSol === 0n ||
+    curveSupply === 0n ||
+    curveSupply >= tokenTotalSupply ||
+    initialVirtualToken <= curveSupply ||
+    migrationFeeBps < 0n ||
+    migrationFeeBps > BPS_DENOMINATOR
+  )
+    throw fail("launch parameters out of range");
+  const raised = solInForTokens(initialVirtualSol, initialVirtualToken, curveSupply);
+  if (raised > U64_MAX) throw new CurveMathError("Overflow", "raised SOL out of u64 range");
+  const vSol = initialVirtualSol + raised;
+  const vToken = initialVirtualToken - curveSupply;
+  const lpSol = raised - ceilDiv(raised * migrationFeeBps, BPS_DENOMINATOR);
+  const uncapped = (lpSol * vToken) / vSol;
+  const slack = ceilDiv(vToken, vSol) + 1n;
+  const reserve = tokenTotalSupply - curveSupply;
+  const afterSlack = uncapped > slack ? uncapped - slack : 0n;
+  const lpTokens = afterSlack < reserve ? afterSlack : reserve;
+  const minProduct = (MIN_POOL_LIQUIDITY + 1n) * (MIN_POOL_LIQUIDITY + 1n);
+  if (lpSol === 0n || lpTokens === 0n || lpSol * lpTokens < minProduct)
+    throw fail("a completed curve would have no SOL or no tokens left for its pool");
 }
 
 export function initialState(p: LaunchParams): CurveState {
@@ -123,6 +193,10 @@ export function graduationAllocation(s: CurveState, migrationFeeBps: bigint): Gr
   const lpSol = s.realSolReserves - migrationFee;
   let lpTokens = (lpSol * s.virtualTokenReserves) / s.virtualSolReserves;
   if (lpTokens > reserve) lpTokens = reserve;
+  // A pool needs both sides. `validateGraduationParams` rules this out for every curve
+  // launched under validated parameters (the program refuses any other Config).
+  if (lpSol === 0n || lpTokens === 0n)
+    throw new CurveMathError("InvalidParams", "nothing to deposit on one side of the pool");
   return {
     raisedSol: s.realSolReserves,
     migrationFee,

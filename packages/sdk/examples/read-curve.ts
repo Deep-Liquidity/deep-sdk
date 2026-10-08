@@ -2,7 +2,7 @@
  * Read a launch's bonding curve straight from chain: state, price, progress, completion and,
  * after graduation, its DeepSwap pool. Read-only.
  *
- *   pnpm --filter @deepliquidity/sdk exec tsx examples/read-curve.ts [--mint <mint>] [--rpc <url>]
+ *   pnpm --filter @deep/sdk exec tsx examples/read-curve.ts [--mint <mint>] [--rpc <url>]
  *
  * Without --mint it lists every BondingCurve account (getProgramAccounts) and reads the first
  * one still bonding.

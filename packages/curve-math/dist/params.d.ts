@@ -24,6 +24,28 @@ export interface LaunchParams {
  */
 export declare const DEFAULT_LAUNCH_PARAMS: LaunchParams;
 export declare function validateLaunchParams(p: LaunchParams): void;
+/**
+ * deep-amm locks the first 100 LP units of a new pool: the initial liquidity
+ * `floor(sqrt(amount0 * amount1))` must be above it.
+ */
+export declare const MIN_POOL_LIQUIDITY = 100n;
+/**
+ * Launch parameters under which EVERY curve can graduate. Mirrors deep-curve
+ * `math::validate_graduation_params` exactly (shared vectors: `graduationParams` in
+ * fixtures/curve-vectors.json); the program applies it to every Config.
+ *
+ * - `0 < curveSupply < tokenTotalSupply`: tokens are left for the pool;
+ * - `initialVirtualToken > curveSupply`, `initialVirtualSol > 0`;
+ * - the graduation allocation of a completed curve has SOL and tokens for the pool, and enough
+ *   of both for deep-amm's minimum liquidity, whatever path the curve took.
+ *
+ * The check is made on the completed curve that raised the LEAST SOL. Trades only ever round
+ * against the trader, so `virtualSol * virtualToken` never decreases and a completed curve holds
+ * at least `solInForTokens(initialVirtualSol, initialVirtualToken, curveSupply)`. `lpSol` does
+ * not decrease when more is raised. `lpTokens` can, by rounding only, by less than
+ * `virtualToken / virtualSol + 1`, so that much is taken off before checking.
+ */
+export declare function validateGraduationParams(initialVirtualSol: bigint, initialVirtualToken: bigint, curveSupply: bigint, tokenTotalSupply: bigint, migrationFeeBps: bigint): void;
 export declare function initialState(p: LaunchParams): CurveState;
 /** Fully diluted market cap in lamports at the current spot price. Rounds down. */
 export declare function marketCapLamports(s: CurveState): bigint;

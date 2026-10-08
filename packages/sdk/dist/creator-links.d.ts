@@ -12,7 +12,7 @@
  */
 /** The four link slots, named as in the API's TokenLinks. */
 export type CreatorLinkKind = "twitter" | "telegram" | "website" | "discord";
-/** Same shape as TokenLinks in @deepliquidity/shared-types; null = no link. */
+/** Same shape as TokenLinks in @deep/shared-types; null = no link. */
 export type CreatorLinkSet = Record<CreatorLinkKind, string | null>;
 /** Message and display order. */
 export declare const CREATOR_LINK_KINDS: CreatorLinkKind[];

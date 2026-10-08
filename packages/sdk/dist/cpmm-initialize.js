@@ -1,12 +1,15 @@
 /**
- * DeepSwap permissionless pool creation: the `initialize` instruction of programs/deep-amm
- * (instructions/initialize.rs), plus the amounts it derives. Anyone can create a pool for any
- * two mints the program supports (see cpmm-token2022.ts `cpmmMintSupported`).
+ * DeepSwap permissionless pool creation: the `initialize` and `initialize_v1` instructions of
+ * programs/deep-amm (instructions/initialize.rs), plus the amounts they derive. Anyone can
+ * create a pool for any two mints the program supports (see cpmm-token2022.ts
+ * `cpmmMintSupported`).
  */
 import { Buffer } from "buffer";
-import { ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID, } from "@solana/spl-token";
+import { ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync, NATIVE_MINT, TOKEN_PROGRAM_ID, } from "@solana/spl-token";
+import { deepSwapRewardRateFromBps, validateDeepSwapPoolReward } from "@deepliquidity/curve-math";
 import { PublicKey, SystemProgram, SYSVAR_RENT_PUBKEY, TransactionInstruction, } from "@solana/web3.js";
 import { discriminator } from "./constants.js";
+import { DEEP_REWARDS_PROGRAM_ID, distributorPda, holderVaultPda } from "./rewards.js";
 import { cpmmAuthority, cpmmLpMint, cpmmObservation, cpmmPoolPda, cpmmVault, DEEP_AMM_PROGRAM_ID, sortMints, } from "./raydium-cpmm.js";
 export * from "./cpmm-token2022.js";
 /** LP units the program keeps out of the creator's hands at pool creation (`lock_lp_amount`). */
@@ -62,8 +65,84 @@ export function cpmmInitializeAccounts(a) {
         observation: cpmmObservation(programId, poolState),
     };
 }
-/** `initialize(init_amount_0, init_amount_1, open_time)` */
+/**
+ * `initialize(init_amount_0, init_amount_1, open_time)`. Under a legacy AmmConfig it opens a
+ * legacy pool; under a DEEP V1 config, a V1 STANDARD pool (no reward) whose quote token is
+ * `cpmmDefaultQuoteMint`. To choose reward terms or the quote token use `initializeV1Ix`.
+ */
 export function cpmmInitializeIx(a) {
+    return initializeIx(a);
+}
+// ───────────── DEEP V1: a pool with its creator's reward terms ─────────────
+/**
+ * The quote token of a V1 pool opened without naming one (deep-amm `default_quote_side`): the
+ * token every fee is taken in. WSOL when the pair has it, otherwise token 1 (the mint that
+ * sorts last).
+ */
+export function cpmmDefaultQuoteMint(mintA, mintB) {
+    if (mintA.equals(NATIVE_MINT) || mintB.equals(NATIVE_MINT))
+        return NATIVE_MINT;
+    return sortMints(mintA, mintB)[1];
+}
+/**
+ * The Holder recipient of a pool opened with `initialize_v1`: the deep-rewards holder vault
+ * of the pool's NON-quote token, `holderVaultPda(baseMint)`.
+ */
+export function cpmmHolderRewardRecipient(baseMint, rewardsProgramId = DEEP_REWARDS_PROGRAM_ID) {
+    return holderVaultPda(baseMint, rewardsProgramId);
+}
+/**
+ * Validates a V1 pool's reward terms the way `initialize_v1` does and resolves what it
+ * derives. Throws on: an unknown model; a rate that does not fit it (Standard 0, Creator /
+ * Holder 1..=500 bps) or is above `maxRewardRate`; a quote that is not one of the mints or is
+ * not WSOL on a WSOL pair; a Holder pool not quoted in WSOL (HolderRewardsNeedSolQuote).
+ */
+export function cpmmV1PoolTerms(a) {
+    if (a.mintA.equals(a.mintB))
+        throw new Error("a pool needs two different mints");
+    const [mint0, mint1] = sortMints(a.mintA, a.mintB);
+    const rewardModel = a.rewardModel ?? 0;
+    const rewardBps = a.rewardBps ?? 0;
+    if (!Number.isInteger(rewardBps) || rewardBps < 0)
+        throw new RangeError("rewardBps must be a whole number of bps");
+    const rewardRate = deepSwapRewardRateFromBps(BigInt(rewardBps));
+    validateDeepSwapPoolReward(rewardModel, rewardRate, a.maxRewardRate);
+    const quoteMint = a.quoteMint ?? cpmmDefaultQuoteMint(mint0, mint1);
+    if (!quoteMint.equals(mint0) && !quoteMint.equals(mint1))
+        throw new Error("quoteMint must be one of the pool's two mints");
+    const baseMint = quoteMint.equals(mint0) ? mint1 : mint0;
+    if (baseMint.equals(NATIVE_MINT))
+        throw new Error("a pair with WSOL takes its fees in WSOL: quoteMint must be the WSOL mint");
+    if (rewardModel === 2 && !quoteMint.equals(NATIVE_MINT))
+        throw new Error("a Holder Rewards pool opened with initialize_v1 must be quoted in SOL");
+    return {
+        quoteMint,
+        baseMint,
+        quoteSide: quoteMint.equals(mint0) ? 1 : 2,
+        rewardModel,
+        rewardRate,
+        rewardRecipient: rewardModel === 2 ? cpmmHolderRewardRecipient(baseMint, a.rewardsProgramId) : a.creator,
+        ...(rewardModel === 2
+            ? { distributor: distributorPda(baseMint, quoteMint, a.rewardsProgramId) }
+            : {}),
+    };
+}
+/**
+ * deep-amm `initialize_v1(init_amount_0, init_amount_1, open_time, creator_fee_on,
+ * reward_model, reward_rate)`: permissionless, same accounts as `initialize`. Opens a DEEP V1
+ * pool under a V1 AmmConfig (a legacy config is rejected, FeeModelMismatch) with the reward
+ * terms its creator chooses, immutable afterwards: `rewardModel` and `rewardBps` (see
+ * `CpmmPoolRewardTerms`, `cpmmV1PoolTerms`), and the quote token. The reward recipient is
+ * derived by the program: the creator for a Creator pool, `cpmmHolderRewardRecipient` (the
+ * holder vault of the non-quote token) for a Holder pool, which must be quoted in SOL and
+ * whose (token, SOL) deep-rewards distributor must exist already
+ * (HolderRewardsNeedDistributor, 6029; check `cpmmV1PoolTerms(a).distributor` on chain before
+ * offering the Holder model for a token).
+ */
+export function initializeV1Ix(a) {
+    return initializeIx(a, cpmmV1PoolTerms(a));
+}
+function initializeIx(a, v1) {
     const programId = a.programId ?? DEEP_AMM_PROGRAM_ID;
     const openTime = a.openTime ?? 0n;
     for (const [k, v] of [
@@ -84,11 +163,16 @@ export function cpmmInitializeIx(a) {
     const creatorA = a.creatorTokenA ?? ata(a.mintA, a.tokenProgramA);
     const creatorB = a.creatorTokenB ?? ata(a.mintB, a.tokenProgramB);
     const [creator0, creator1] = acc.aIsToken0 ? [creatorA, creatorB] : [creatorB, creatorA];
-    const data = Buffer.alloc(8 + 24);
-    data.set(discriminator("global", "initialize"), 0);
+    const data = Buffer.alloc(v1 ? 8 + 24 + 1 + 1 + 8 : 8 + 24);
+    data.set(discriminator("global", v1 ? "initialize_v1" : "initialize"), 0);
     data.writeBigUInt64LE(amount0, 8);
     data.writeBigUInt64LE(amount1, 16);
     data.writeBigUInt64LE(openTime, 24);
+    if (v1) {
+        data.writeUInt8(v1.quoteSide, 32);
+        data.writeUInt8(v1.rewardModel, 33);
+        data.writeBigUInt64LE(v1.rewardRate, 34);
+    }
     const ro = (pubkey) => ({ pubkey, isSigner: false, isWritable: false });
     const rw = (pubkey) => ({ pubkey, isSigner: false, isWritable: true });
     return new TransactionInstruction({
@@ -115,6 +199,7 @@ export function cpmmInitializeIx(a) {
             ro(SystemProgram.programId),
             ro(SYSVAR_RENT_PUBKEY),
             ...(a.supportMints ?? []).map(ro),
+            ...(v1?.distributor ? [ro(v1.distributor)] : []),
         ],
         data,
     });

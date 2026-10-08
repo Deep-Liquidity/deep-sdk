@@ -16,10 +16,14 @@ import {
   unpackMint,
 } from "@solana/spl-token";
 import { PublicKey, type GetProgramAccountsFilter } from "@solana/web3.js";
-import type { AmmSwapEventRaw, PoolSwapRates } from "./amm-events.js";
+import {
+  swapReservesAfter,
+  type AmmSwapEventRaw,
+  type AmmSwapFeesV1Raw,
+  type PoolSwapRates,
+} from "./amm-events.js";
 import { discriminator } from "./constants.js";
 import { DEEP_AMM_FEES } from "./deep-amm.js";
-import { CPMM_FEE_DENOMINATOR } from "./raydium-cpmm.js";
 
 // ───────────── discovery ─────────────
 
@@ -200,6 +204,25 @@ export interface PairSwap {
   /** Pool reserves (net of accrued protocol/fund/creator fees) right after the swap. */
   reserve0After: bigint;
   reserve1After: bigint;
+  /**
+   * DEEP V1 pools only (present when the swap's `SwapFeesV1` was supplied). Then `fee` is NOT
+   * necessarily on the input token: every fee of the swap is in the pool's quote token,
+   * `fee` is `lpFee + protocolFee`, and on a sell `amount<quote>` is net of all of it.
+   */
+  v1?: {
+    /** True when the input was the pool's quote token (the fee came off the input). */
+    isBuy: boolean;
+    /** True when the quote token, the one every fee amount is in, is token0. */
+    feeOnToken0: boolean;
+    /** Stays in the pool for LPs. */
+    lpFee: bigint;
+    /** DEEP's part. */
+    protocolFee: bigint;
+    /** The reward recipient's part (0 on a Standard pool), charged on top of `fee`. */
+    rewardFee: bigint;
+    /** 0 Standard, 1 Creator, 2 Holder. */
+    rewardModel: number;
+  };
 }
 
 /**
@@ -207,25 +230,25 @@ export interface PairSwap {
  * arithmetic as toPoolSwap (the protocol, fund and creator slices leave the reserves, with
  * the program's floor rounding) but with no SOL assumption. Null when the event's mints are
  * not the pool's or its numbers are inconsistent.
+ *
+ * DEEP V1 pools: pass the swap's `SwapFeesV1` as `feesV1` (`parseAmmSwapEventsWithSource`
+ * pairs them). `rates` is then not used: the DEEP and reward parts leave the reserves on the
+ * quote side in both directions, and the result carries the breakdown in `v1`. Null when
+ * `feesV1` does not belong to `e`. Without it the legacy arithmetic applies unchanged, which
+ * is wrong for a V1 swap.
  */
 export function toPairSwap(
   e: AmmSwapEventRaw,
   pool: { token0Mint: PublicKey; token1Mint: PublicKey },
   rates: PoolSwapRates = DEEP_AMM_FEES,
+  feesV1?: AmmSwapFeesV1Raw | null,
 ): PairSwap | null {
   const zeroForOne = e.inputMint.equals(pool.token0Mint) && e.outputMint.equals(pool.token1Mint);
   if (!zeroForOne && !(e.inputMint.equals(pool.token1Mint) && e.outputMint.equals(pool.token0Mint)))
     return null;
-  const cut = (rate: bigint) => (e.tradeFee * rate) / CPMM_FEE_DENOMINATOR;
-  const inputAfter =
-    e.inputVaultBefore +
-    e.inputAmount -
-    cut(rates.protocolFeeRate) -
-    cut(rates.fundFeeRate) -
-    (e.creatorFeeOnInput ? e.creatorFee : 0n);
-  const outputAfter =
-    e.outputVaultBefore - e.outputAmount - (e.creatorFeeOnInput ? 0n : e.creatorFee);
-  if (inputAfter < 0n || outputAfter <= 0n) return null;
+  const after = swapReservesAfter(e, rates, feesV1);
+  if (!after) return null;
+  const [inputAfter, outputAfter] = after;
   return {
     zeroForOne,
     amount0: zeroForOne ? e.inputAmount : e.outputAmount,
@@ -233,6 +256,18 @@ export function toPairSwap(
     fee: e.tradeFee,
     reserve0After: zeroForOne ? inputAfter : outputAfter,
     reserve1After: zeroForOne ? outputAfter : inputAfter,
+    ...(feesV1
+      ? {
+          v1: {
+            isBuy: feesV1.isBuy,
+            feeOnToken0: feesV1.quoteMint.equals(pool.token0Mint),
+            lpFee: feesV1.lpFee,
+            protocolFee: feesV1.protocolFee,
+            rewardFee: feesV1.rewardFee,
+            rewardModel: feesV1.rewardModel,
+          },
+        }
+      : {}),
   };
 }
 

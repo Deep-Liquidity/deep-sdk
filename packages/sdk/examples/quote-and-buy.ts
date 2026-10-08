@@ -2,7 +2,7 @@
  * Quote a curve buy with the program's own integer math, build the transaction (compute budget +
  * `buy` with a slippage floor and a deadline), and SIMULATE it on devnet. Nothing is signed or sent.
  *
- *   pnpm --filter @deepliquidity/sdk exec tsx examples/quote-and-buy.ts --mint <mint> \
+ *   pnpm --filter @deep/sdk exec tsx examples/quote-and-buy.ts --mint <mint> \
  *     [--sol 0.01] [--slippage-bps 100] [--payer <public key>] [--rpc <url>]
  *
  * --payer defaults to a funded devnet key read from the deep-curve Config (the admin or the

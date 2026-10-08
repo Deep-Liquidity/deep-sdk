@@ -30,6 +30,7 @@
     },
     "./idl/deep_curve.json": "./idl/deep_curve.json",
     "./idl/deep_amm.json": "./idl/deep_amm.json",
+    "./idl/deep_rewards.json": "./idl/deep_rewards.json",
     "./package.json": "./package.json"
   },
   "files": [
@@ -53,14 +54,5 @@
   },
   "publishConfig": {
     "access": "public"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Deep-Liquidity/deep-sdk.git",
-    "directory": "packages/sdk"
-  },
-  "homepage": "https://github.com/Deep-Liquidity/deep-sdk/tree/main/packages/sdk",
-  "bugs": {
-    "url": "https://github.com/Deep-Liquidity/deep-sdk/issues"
   }
 }

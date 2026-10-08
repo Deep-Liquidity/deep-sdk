@@ -11,8 +11,14 @@
  * Consequence: the curve invariant k never decreases across a trade.
  */
 export const BPS_DENOMINATOR = 10000n;
-/** Hard cap on combined fees. Mirrored on-chain. */
+/** Hard cap on combined fees of one side (protocol + reward). Mirrored on-chain. */
 export const MAX_TOTAL_FEE_BPS = 1000n; // 10%
+/**
+ * Hard ceiling of the reward rate a token's creator can choose at launch (`creatorFeeBps` on
+ * the curve). Mirrored on-chain. The admin's current maximum (`Config.max_reward_bps`) is at
+ * most this, and the total of a side still has to fit MAX_TOTAL_FEE_BPS.
+ */
+export const MAX_REWARD_BPS = 500n; // 5%
 export class CurveMathError extends Error {
     code;
     constructor(code, message) {

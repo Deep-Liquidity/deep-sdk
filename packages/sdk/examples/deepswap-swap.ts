@@ -3,7 +3,7 @@
  * program's integer math (trade fee, creator fee, Token-2022 transfer fees), build
  * wrap → swap_base_input → unwrap, and SIMULATE it on devnet. Nothing is signed or sent.
  *
- *   pnpm --filter @deepliquidity/sdk exec tsx examples/deepswap-swap.ts [--mint <graduated mint> | --pool <pool>] \
+ *   pnpm --filter @deep/sdk exec tsx examples/deepswap-swap.ts [--mint <graduated mint> | --pool <pool>] \
  *     [--side buy|sell] [--amount <input base units>] [--slippage-bps 100] [--payer <public key>] [--rpc <url>]
  *
  * buy = SOL in, sell = token in (pools with WSOL on one side). Without --mint/--pool the first

@@ -5,11 +5,12 @@ TypeScript client for **DEEP** on Solana: the **deep-curve** launchpad (bonding 
 builders, account and event decoders, integer quotes that match the programs exactly, and the
 programs' Anchor IDLs.
 
-> **Status.** The programs run on **devnet**. They are **not deployed on mainnet** and have **not
-> been audited**. Nothing in this package sends transactions by itself.
+> **Status.** The programs run on **mainnet-beta** and **devnet**, at the same program ids. They
+> have **not been audited**. Nothing in this package sends transactions by itself.
 
 The full integration guide (account layouts with offsets, events, fee maths, error codes,
-compute budgets, differences from pump.fun and Raydium CPMM) is [`docs/INTEGRATORS.md`](../../docs/INTEGRATORS.md) and the "Integrate" section of the DEEP docs.
+compute budgets, differences from pump.fun and Raydium CPMM) is `docs/INTEGRATORS.md` in the DEEP
+repository and the "Integrate" section of the DEEP docs.
 
 ## Install
 
@@ -24,8 +25,8 @@ imports `Buffer` from the `buffer` package and never relies on a global `Buffer`
 
 ```ts
 import { DEEP_CURVE_PROGRAM_ID, DEEP_AMM_PROGRAM_ID } from "@deepliquidity/sdk";
-// deep-curve 7czURwVLkQpcF1HVhhZU5GGzvPA8YniogZY1BhZHCDtA (devnet)
-// deep-amm   HCrCy6bzHhZ1b6bXwQAucEFkKXyzYMh3hgAR8UPrYSEP (devnet)
+// deep-curve 7czURwVLkQpcF1HVhhZU5GGzvPA8YniogZY1BhZHCDtA (mainnet-beta and devnet)
+// deep-amm   HCrCy6bzHhZ1b6bXwQAucEFkKXyzYMh3hgAR8UPrYSEP (mainnet-beta and devnet)
 ```
 
 ## Quick start: quote and build a curve buy

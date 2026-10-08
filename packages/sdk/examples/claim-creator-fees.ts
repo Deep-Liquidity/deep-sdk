@@ -1,7 +1,7 @@
 /**
  * Creator fees, both venues, SIMULATED on devnet. Nothing is signed or sent.
  *
- *   pnpm --filter @deepliquidity/sdk exec tsx examples/claim-creator-fees.ts [--mint <mint>] [--payer <fee payer>] [--rpc <url>]
+ *   pnpm --filter @deep/sdk exec tsx examples/claim-creator-fees.ts [--mint <mint>] [--payer <fee payer>] [--rpc <url>]
  *
  * - Bonding curve: `claim_creator_fees` moves BondingCurve.creator_fees_unclaimed (lamports) to
  *   the creator. Signer: the curve's creator.

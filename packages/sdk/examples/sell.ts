@@ -1,7 +1,7 @@
 /**
  * Quote a curve sell, build it and SIMULATE it on devnet. Nothing is signed or sent.
  *
- *   pnpm --filter @deepliquidity/sdk exec tsx examples/sell.ts --mint <mint> \
+ *   pnpm --filter @deep/sdk exec tsx examples/sell.ts --mint <mint> \
  *     [--tokens <base units>] [--slippage-bps 100] [--payer <holder public key>] [--rpc <url>]
  *
  * --payer must hold the token. It defaults to a recent buyer (from the TradeEvents in the

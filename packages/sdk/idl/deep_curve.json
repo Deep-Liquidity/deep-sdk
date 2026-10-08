@@ -70,6 +70,42 @@
       "args": []
     },
     {
+      "name": "apply_splitter_update",
+      "docs": [
+        "Timelocked splitter change, step 2. PERMISSIONLESS after eta (within the grace window)."
+      ],
+      "discriminator": [96, 128, 251, 20, 27, 130, 163, 110],
+      "accounts": [
+        {
+          "name": "splitter",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [115, 112, 108, 105, 116, 116, 101, 114]
+              }
+            ]
+          }
+        },
+        {
+          "name": "pending_splitter",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112, 101, 110, 100, 105, 110, 103, 95, 115, 112, 108, 105, 116, 116, 101, 114
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "buy",
       "docs": ["Buy with an exact SOL budget. Charges less if capped by remaining supply."],
       "discriminator": [102, 6, 61, 18, 1, 218, 235, 234],
@@ -235,6 +271,44 @@
       "args": []
     },
     {
+      "name": "cancel_splitter_update",
+      "docs": ["Admin veto for a queued splitter change."],
+      "discriminator": [12, 140, 108, 213, 132, 164, 86, 134],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": ["config"]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        },
+        {
+          "name": "pending_splitter",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112, 101, 110, 100, 105, 110, 103, 95, 115, 112, 108, 105, 116, 116, 101, 114
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "claim_creator_fees",
       "discriminator": [0, 23, 125, 234, 156, 118, 134, 89],
       "accounts": [
@@ -266,7 +340,22 @@
     },
     {
       "name": "create_token",
-      "docs": ["Creates a fixed-supply mint, its metadata, and the bonding curve that sells it."],
+      "docs": [
+        "Creates a fixed-supply mint, its metadata, and the bonding curve that sells it.",
+        "The creator chooses the token's reward terms, both immutable: `reward_model`",
+        "(0 Standard, 1 Creator, 2 Holder) and `reward_bps`, the reward rate charged on every",
+        "buy and sell on top of DEEP's protocol fee, on this curve and later on the token's",
+        "DeepSwap pool. Standard: `reward_bps` must be 0. Creator / Holder: at least 1, at",
+        "most the admin's current maximum (`Config.max_reward_bps`, itself at most the hard",
+        "ceiling `math::MAX_REWARD_BPS`, 500), and DEEP's protocol fee plus the reward rate at",
+        "most 1000 bps on each side. They are stored on the curve together with DEEP's protocol",
+        "rates in force now; later changes of the maximum or of the rates never touch it.",
+        "",
+        "`max_launch_fee_lamports`: the most the creator agrees to pay as launch fee. The fee is",
+        "set in USD and converted at the Pyth SOL/USD price inside this instruction; if that",
+        "comes to more lamports than this limit the transaction fails with `LaunchFeeAboveMax`",
+        "and nothing is charged (security review F9)."
+      ],
       "discriminator": [84, 52, 204, 228, 24, 140, 234, 75],
       "accounts": [
         {
@@ -401,8 +490,103 @@
         {
           "name": "uri",
           "type": "string"
+        },
+        {
+          "name": "reward_model",
+          "type": "u8"
+        },
+        {
+          "name": "reward_bps",
+          "type": "u16"
+        },
+        {
+          "name": "max_launch_fee_lamports",
+          "type": "u64"
         }
       ]
+    },
+    {
+      "name": "distribute",
+      "docs": [
+        "PERMISSIONLESS: unwraps the vault's WSOL, pays the builder exactly 10% of all revenue",
+        "over time and the rest to the configured destinations by bps. Destinations follow in",
+        "`remaining_accounts`, writable, in config order."
+      ],
+      "discriminator": [191, 44, 223, 207, 164, 236, 126, 61],
+      "accounts": [
+        {
+          "name": "payer",
+          "docs": [
+            "Anyone. Fronts the rent of the temporary WSOL-unwrap account when the vault holds WSOL",
+            "and gets exactly that back in the same instruction; pays nothing else and receives",
+            "nothing else."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "splitter",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [115, 112, 108, 105, 116, 116, 101, 114]
+              }
+            ]
+          }
+        },
+        {
+          "name": "fee_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [102, 101, 101, 95, 118, 97, 117, 108, 116]
+              }
+            ]
+          }
+        },
+        {
+          "name": "fee_vault_wsol",
+          "writable": true
+        },
+        {
+          "name": "wsol_unwrap",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [119, 115, 111, 108, 95, 117, 110, 119, 114, 97, 112]
+              }
+            ]
+          }
+        },
+        {
+          "name": "wsol_mint",
+          "address": "So11111111111111111111111111111111111111112"
+        },
+        {
+          "name": "builder",
+          "docs": [
+            "account (e.g. a Squads vault PDA); the handler pays it only while it is one and",
+            "otherwise books its share as `builder_owed`."
+          ],
+          "writable": true,
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
     },
     {
       "name": "graduate",
@@ -410,29 +594,41 @@
         "Graduates a completed curve into a deep-amm (DeepSwap CPMM) pool, non-custodially:",
         "the pool is created via CPI with `lp_sol` (as WSOL) and `lp_tokens` from",
         "`math::graduation_allocation`, every LP token received is burned (permanent",
-        "lock), and reserve tokens not needed for the pool are burned. The pool is created",
-        "through deep-amm `initialize_with_permission`, so it charges the AmmConfig's",
-        "creator fee, records the TOKEN's creator as its `pool_creator` (who can collect",
-        "their share) and takes that fee in SOL on both trade directions. The migration",
-        "authority only triggers it and never holds funds. Pool creation costs",
-        "(deep-amm create-pool fee + rent) are paid out of the migration fee; the rest",
-        "goes to the treasury. If the migration fee does not cover the costs, anyone can",
+        "lock), and reserve tokens not needed for the pool are burned.",
+        "",
+        "DEEP V1: when the configured AmmConfig is a V1 config the pool is created through",
+        "deep-amm `initialize_with_permission_v1` with the token's immutable reward model and",
+        "reward rate (`curve.reward_model`, `curve.creator_fee_bps`: the same rate the curve",
+        "charged) and SOL as its quote: every DeepSwap fee of the pool is taken in",
+        "SOL, and the reward part (Creator / Holder tokens) accrues for `reward_recipient`, the",
+        "token's creator or the token's holder vault, which is recorded as the pool's",
+        "`pool_creator`. A Holder token's curve reward fees are swept to its holder vault here",
+        "when the vault can hold them (same rule as `sweep_holder_fees`; skipped, never failed,",
+        "otherwise, and they stay sweepable). When the configured AmmConfig is still a legacy",
+        "one, the pool is created through `initialize_with_permission` exactly as before V1",
+        "(the AmmConfig's creator fee, in SOL), with the same `reward_recipient`.",
+        "",
+        "PERMISSIONLESS (security review F2): a completed curve's SOL has no other way out, so",
+        "no key can withhold it. The instruction has no signer account at all; whoever sends",
+        "the transaction pays its network fee and nothing else, and receives nothing. Every",
+        "account is pinned by seeds or address, and every lamport and token has a fixed",
+        "destination: the pool (LP burned), the burn, the reward recipient's holder vault",
+        "(a Holder token's curve fees) and the DEEP fee vault (everything else: the",
+        "migration fee minus the pool costs, the rent of the two temporary token accounts,",
+        "SOL or WSOL anyone donated to them or to `pool_creator`). `Config.migration_authority`",
+        "is not read. deep-amm cannot be made to refuse the pool: for this payer it needs no",
+        "`Permission`, ignores `disable_create_pool` and caps the create-pool fee.",
+        "",
+        "Pool creation costs (deep-amm create-pool fee + rent, and the temporary accounts'",
+        "rent until they are closed here) are paid out of the migration fee; the rest goes to",
+        "the DEEP fee vault. If the migration fee does not cover the costs, anyone can",
         "top up the `pool_creator` PDA with SOL and retry (that PDA is shared by every",
-        "graduation, and each one sweeps what is left of it to the Treasury, so top up in",
+        "graduation, and each one sweeps what is left of it to the fee vault, so top up in",
         "the same transaction or right before the retry). Idempotent: a second call",
         "fails with `AlreadyGraduated`."
       ],
       "discriminator": [45, 235, 225, 181, 17, 218, 64, 130],
       "accounts": [
-        {
-          "name": "migration_authority",
-          "docs": [
-            "Must be the configured migration authority (expected: a multisig). Triggers",
-            "graduation and fronts the two temporary ATAs' rent (refunded); never holds funds."
-          ],
-          "writable": true,
-          "signer": true
-        },
         {
           "name": "config",
           "pda": {
@@ -445,13 +641,14 @@
           }
         },
         {
-          "name": "treasury",
+          "name": "fee_vault",
+          "docs": ["The DEEP fee vault (DEEP V1; was the Treasury, same position)."],
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
-                "value": [116, 114, 101, 97, 115, 117, 114, 121]
+                "value": [102, 101, 101, 95, 118, 97, 117, 108, 116]
               }
             ]
           }
@@ -508,9 +705,13 @@
           }
         },
         {
-          "name": "token_creator",
+          "name": "reward_recipient",
           "docs": [
-            "their share of the DeepSwap creator fee. Never signs and receives nothing here."
+            "(`reward_recipient_address`): the token's holder vault (deep-rewards PDA",
+            "`[\"holder_vault\", mint]`) for a Holder token, the token's creator otherwise. Recorded",
+            "as the pool's `pool_creator`. Never signs. For a Holder token pass it WRITABLE so the",
+            "curve's holder fees can be swept to it here (read-only: that sweep is skipped); it",
+            "receives nothing else in this instruction."
           ]
         },
         {
@@ -527,33 +728,11 @@
         },
         {
           "name": "creator_token",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "account",
-                "path": "pool_creator"
-              },
-              {
-                "kind": "const",
-                "value": [
-                  6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28,
-                  180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "mint"
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19,
-                153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89
-              ]
-            }
-          }
+          "docs": [
+            "missing (payer = `pool_creator`), verified (mint, owner) and closed in the same",
+            "instruction."
+          ],
+          "writable": true
         },
         {
           "name": "wsol_mint",
@@ -561,33 +740,8 @@
         },
         {
           "name": "creator_wsol",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "account",
-                "path": "pool_creator"
-              },
-              {
-                "kind": "const",
-                "value": [
-                  6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28,
-                  180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "wsol_mint"
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19,
-                153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89
-              ]
-            }
-          }
+          "docs": ["token program and deep-amm verify it when it is used."],
+          "writable": true
         },
         {
           "name": "creator_lp_token",
@@ -614,7 +768,7 @@
         },
         {
           "name": "permission",
-          "docs": ["admin); seeds, owner and type verified by deep-amm."]
+          "docs": ["It does not have to exist: deep-amm requires no permission from this payer."]
         },
         {
           "name": "raydium_authority"
@@ -720,11 +874,123 @@
       ]
     },
     {
+      "name": "initialize_splitter",
+      "docs": [
+        "One-time (admin): creates the SplitterConfig with the initial 90% destinations, funds",
+        "the fee vault to its rent minimum and creates the vault's WSOL ATA (payer = admin).",
+        "Fails unless this build's deep-amm locks its protocol owner and create-pool fee receiver",
+        "to this vault."
+      ],
+      "discriminator": [81, 111, 81, 77, 41, 36, 149, 189],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": ["config"]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        },
+        {
+          "name": "splitter",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [115, 112, 108, 105, 116, 116, 101, 114]
+              }
+            ]
+          }
+        },
+        {
+          "name": "fee_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [102, 101, 101, 95, 118, 97, 117, 108, 116]
+              }
+            ]
+          }
+        },
+        {
+          "name": "fee_vault_wsol",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "fee_vault"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28,
+                  180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "wsol_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19,
+                153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89
+              ]
+            }
+          }
+        },
+        {
+          "name": "wsol_mint",
+          "address": "So11111111111111111111111111111111111111112"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "params",
+          "type": {
+            "defined": {
+              "name": "SplitterParams"
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "migrate_config",
       "docs": [
-        "PERMISSIONLESS, idempotent: grows a v1 Config (213 B) and, if present, a v1",
-        "PendingConfig (165 B) to the v2 layout. New fields start at 0 (launch fee off);",
-        "the admin then sets the launch fee through the timelock. No-op when already v2."
+        "PERMISSIONLESS, idempotent: grows a v1 (213 B) or v2 (215 B) Config and, if present, a",
+        "v1 (165 B) or v2 (167 B) PendingConfig to the v3 layout. No-op when already v3.",
+        "New fields: the launch fee (v2) starts at 0; `sell_protocol_fee_bps` (v3) is set to the",
+        "account's own `protocol_fee_bps`, so sells keep paying what they paid before; the",
+        "current maximum reward rate (v3, `max_reward_bps`) starts at the ceiling, 500. Every",
+        "other value is then set through the timelock."
       ],
       "discriminator": [92, 131, 58, 105, 210, 154, 224, 193],
       "accounts": [
@@ -767,8 +1033,12 @@
     {
       "name": "migrate_curve",
       "docs": [
-        "PERMISSIONLESS, idempotent: grows a v1 BondingCurve (177 B) to v2 by appending",
-        "`protocol_fees_unclaimed = 0`. No-op when already v2."
+        "PERMISSIONLESS, idempotent: grows a v1 (177 B) or v2 (185 B) BondingCurve to v3 (196 B).",
+        "No-op when already v3. `protocol_fees_unclaimed` (v2) and `holder_fees_unclaimed` (v3)",
+        "start at 0. The v3 fee fields keep the token's economics unchanged:",
+        "`sell_protocol_fee_bps` = its `protocol_fee_bps`, and `reward_model` = Creator when it",
+        "charges a creator fee (which keeps accruing to the creator), otherwise Standard. The",
+        "payer funds the rent difference, so the curve stays solvent."
       ],
       "discriminator": [151, 254, 50, 13, 112, 235, 152, 72],
       "accounts": [
@@ -883,6 +1153,69 @@
           "type": {
             "defined": {
               "name": "ConfigParams"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "queue_splitter_update",
+      "docs": ["Timelocked splitter change, step 1 (admin). Delay = `Config.timelock_seconds`."],
+      "discriminator": [164, 9, 69, 134, 80, 167, 25, 125],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": ["config"]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        },
+        {
+          "name": "splitter",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [115, 112, 108, 105, 116, 116, 101, 114]
+              }
+            ]
+          }
+        },
+        {
+          "name": "pending_splitter",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112, 101, 110, 100, 105, 110, 103, 95, 115, 112, 108, 105, 116, 116, 101, 114
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "params",
+          "type": {
+            "defined": {
+              "name": "SplitterParams"
             }
           }
         }
@@ -1048,10 +1381,71 @@
       ]
     },
     {
+      "name": "sweep_holder_fees",
+      "docs": [
+        "PERMISSIONLESS: moves a Holder token's accrued curve reward fees to its holder vault,",
+        "the deep-rewards PDA `[\"holder_vault\", mint]` (system-owned; deep-rewards pays them to",
+        "holders by Merkle claim). Works before and after graduation. The vault must end at or",
+        "above the 0-byte rent minimum: once `init_distributor` has run it always does; before",
+        "that, the call succeeds as soon as the accrued amount alone covers it. Until then the",
+        "fees stay on the curve, counted in `holder_fees_unclaimed`, never lost."
+      ],
+      "discriminator": [174, 159, 242, 14, 235, 172, 31, 208],
+      "accounts": [
+        {
+          "name": "curve",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [99, 117, 114, 118, 101]
+              },
+              {
+                "kind": "account",
+                "path": "curve.mint",
+                "account": "BondingCurve"
+              }
+            ]
+          }
+        },
+        {
+          "name": "holder_vault",
+          "docs": [
+            "The token's holder vault: the deep-rewards PDA `[\"holder_vault\", mint]`, system-owned",
+            "and data-less (deep-rewards never allocates it). Any other account is rejected."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [104, 111, 108, 100, 101, 114, 95, 118, 97, 117, 108, 116]
+              },
+              {
+                "kind": "account",
+                "path": "curve.mint",
+                "account": "BondingCurve"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                59, 46, 170, 36, 255, 61, 209, 107, 50, 36, 136, 3, 142, 160, 18, 148, 136, 135, 48,
+                191, 172, 126, 62, 152, 165, 49, 0, 191, 230, 127, 3, 123
+              ]
+            }
+          }
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "sweep_protocol_fees",
       "docs": [
-        "PERMISSIONLESS: moves a curve's accrued protocol fees (trade + launch) to the",
-        "Treasury. Batched off the hot path so buys/sells never write the Treasury."
+        "PERMISSIONLESS: moves a curve's accrued protocol fees (trade + launch) to the DEEP fee",
+        "vault, where `distribute` splits them (builder 10%, destinations 90%). Batched off the",
+        "hot path so buys/sells never write a global account."
       ],
       "discriminator": [117, 225, 240, 75, 71, 195, 44, 43],
       "accounts": [
@@ -1073,13 +1467,17 @@
           }
         },
         {
-          "name": "treasury",
+          "name": "fee_vault",
+          "docs": [
+            "The DEEP fee vault (system-owned PDA, funded to its rent minimum by",
+            "`initialize_splitter`)."
+          ],
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
-                "value": [116, 114, 101, 97, 115, 117, 114, 121]
+                "value": [102, 101, 101, 95, 118, 97, 117, 108, 116]
               }
             ]
           }
@@ -1090,8 +1488,9 @@
     {
       "name": "withdraw_protocol_fees",
       "docs": [
-        "Sends accrued protocol + migration fees from the treasury PDA to",
-        "`config.fee_recipient`. Admin only; the treasury always stays rent-exempt."
+        "Sends what is left in the legacy treasury PDA to `config.fee_recipient`. Admin only;",
+        "the treasury always stays rent-exempt. DEEP V1: nothing credits the Treasury any more",
+        "(all revenue goes to the fee vault); this only drains the pre-V1 devnet balance."
       ],
       "discriminator": [11, 68, 165, 98, 18, 208, 134, 73],
       "accounts": [
@@ -1134,6 +1533,102 @@
           "type": "u64"
         }
       ]
+    },
+    {
+      "name": "withdraw_vault_tokens",
+      "docs": [
+        "Admin: moves non-WSOL tokens that reached the fee vault (legacy token-side DeepSwap",
+        "protocol fees) to a token account of `config.fee_recipient`. Outside the 10% split",
+        "(docs/V1_FEES.md Q12); WSOL can only leave through `distribute`."
+      ],
+      "discriminator": [50, 189, 246, 14, 66, 45, 249, 199],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": ["config"]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        },
+        {
+          "name": "splitter",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [115, 112, 108, 105, 116, 116, 101, 114]
+              }
+            ]
+          }
+        },
+        {
+          "name": "fee_vault",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [102, 101, 101, 95, 118, 97, 117, 108, 116]
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint",
+          "docs": [
+            "Any SPL Token or Token-2022 mint except WSOL (WSOL is revenue and only leaves through",
+            "`distribute`)."
+          ]
+        },
+        {
+          "name": "vault_token",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "fee_vault"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19,
+                153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89
+              ]
+            }
+          }
+        },
+        {
+          "name": "recipient_token",
+          "writable": true
+        },
+        {
+          "name": "token_program"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
     }
   ],
   "accounts": [
@@ -1148,6 +1643,14 @@
     {
       "name": "PendingConfig",
       "discriminator": [109, 48, 178, 191, 125, 67, 26, 70]
+    },
+    {
+      "name": "PendingSplitterUpdate",
+      "discriminator": [221, 41, 32, 70, 243, 240, 204, 240]
+    },
+    {
+      "name": "SplitterConfig",
+      "discriminator": [37, 70, 66, 89, 147, 213, 59, 153]
     },
     {
       "name": "Treasury",
@@ -1180,6 +1683,10 @@
       "discriminator": [51, 241, 66, 50, 140, 245, 156, 192]
     },
     {
+      "name": "HolderFeesSwept",
+      "discriminator": [114, 254, 204, 95, 102, 185, 235, 146]
+    },
+    {
       "name": "LaunchFeeCharged",
       "discriminator": [226, 227, 50, 17, 83, 210, 14, 149]
     },
@@ -1196,12 +1703,32 @@
       "discriminator": [202, 213, 134, 216, 108, 14, 84, 99]
     },
     {
+      "name": "RevenueDistributed",
+      "discriminator": [78, 195, 188, 214, 203, 219, 199, 87]
+    },
+    {
+      "name": "SplitterUpdateCancelled",
+      "discriminator": [117, 79, 237, 44, 132, 97, 217, 103]
+    },
+    {
+      "name": "SplitterUpdateQueued",
+      "discriminator": [186, 241, 138, 31, 137, 51, 191, 214]
+    },
+    {
+      "name": "SplitterUpdated",
+      "discriminator": [47, 113, 134, 158, 13, 13, 60, 61]
+    },
+    {
       "name": "TokenCreated",
       "discriminator": [236, 19, 41, 255, 130, 78, 147, 172]
     },
     {
       "name": "TradeEvent",
       "discriminator": [189, 219, 127, 211, 78, 230, 97, 238]
+    },
+    {
+      "name": "VaultTokensWithdrawn",
+      "discriminator": [153, 11, 222, 80, 79, 170, 179, 207]
     }
   ],
   "errors": [
@@ -1339,6 +1866,86 @@
       "code": 6026,
       "name": "PriceConfidenceTooWide",
       "msg": "Pyth price confidence interval too wide"
+    },
+    {
+      "code": 6027,
+      "name": "InvalidBuilder",
+      "msg": "Builder account is not the build-time builder wallet"
+    },
+    {
+      "code": 6028,
+      "name": "BuilderNotRentExempt",
+      "msg": "Builder wallet would stay below rent exemption; fund it once"
+    },
+    {
+      "code": 6029,
+      "name": "InvalidSplitterParams",
+      "msg": "Invalid splitter parameters"
+    },
+    {
+      "code": 6030,
+      "name": "SplitterUpdatePending",
+      "msg": "A splitter update is already queued; cancel it first"
+    },
+    {
+      "code": 6031,
+      "name": "NoPendingSplitterUpdate",
+      "msg": "No splitter update is queued"
+    },
+    {
+      "code": 6032,
+      "name": "BelowMinDistribute",
+      "msg": "New fee-vault revenue is below the minimum distribute amount"
+    },
+    {
+      "code": 6033,
+      "name": "InvalidDestination",
+      "msg": "Destination accounts do not match the splitter config"
+    },
+    {
+      "code": 6034,
+      "name": "DestinationHasOwed",
+      "msg": "A removed destination still has owed lamports; distribute first"
+    },
+    {
+      "code": 6035,
+      "name": "InvalidFeeVault",
+      "msg": "Fee vault or its WSOL account does not match this build"
+    },
+    {
+      "code": 6036,
+      "name": "InvalidVaultToken",
+      "msg": "WSOL leaves the fee vault only through distribute"
+    },
+    {
+      "code": 6037,
+      "name": "InvalidRewardModel",
+      "msg": "Reward model must be 0 (Standard), 1 (Creator) or 2 (Holder)"
+    },
+    {
+      "code": 6038,
+      "name": "HolderVaultBelowRent",
+      "msg": "Holder vault would stay below rent exemption; init its distributor or wait for more fees"
+    },
+    {
+      "code": 6039,
+      "name": "InvalidRewardRate",
+      "msg": "Reward rate must be 0 for Standard and 1 to 500 bps for Creator and Holder"
+    },
+    {
+      "code": 6040,
+      "name": "RewardRateAboveMax",
+      "msg": "Reward rate is above the current maximum for new launches"
+    },
+    {
+      "code": 6041,
+      "name": "LaunchFeeAboveMax",
+      "msg": "Launch fee in lamports is above the creator's limit (max_launch_fee_lamports)"
+    },
+    {
+      "code": 6042,
+      "name": "GraduationImpossible",
+      "msg": "Parameters under which a completed curve could not graduate (no SOL or tokens left for the pool)"
     }
   ],
   "types": [
@@ -1426,6 +2033,28 @@
               "Appended in v2."
             ],
             "type": "u64"
+          },
+          {
+            "name": "sell_protocol_fee_bps",
+            "docs": [
+              "DEEP V1 (appended, v3). Protocol fee on SELLS, snapshotted at launch;",
+              "`protocol_fee_bps` is the BUY rate."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "reward_model",
+            "docs": [
+              "0 Standard, 1 Creator, 2 Holder (`math::REWARD_MODEL_*`). Chosen at `create_token`,",
+              "never changed afterwards. Graduation carries it into the DeepSwap pool (Phase 3).",
+              "`creator_fee_bps` is this token's reward rate on both sides."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "holder_fees_unclaimed",
+            "docs": ["Holder-model reward fees held on this PDA until `sweep_holder_fees`."],
+            "type": "u64"
           }
         ]
       }
@@ -1449,6 +2078,12 @@
           },
           {
             "name": "migration_authority",
+            "docs": [
+              "NO AUTHORITY ANY MORE (security review F2): `graduate` is permissionless and no",
+              "instruction reads this field. It is kept for layout compatibility and names, by",
+              "convention only, the key DEEP's own graduation crank signs with. It must still be",
+              "non-zero (`ConfigParams::validate`, unchanged)."
+            ],
             "type": "pubkey"
           },
           {
@@ -1507,6 +2142,28 @@
               "Launch fee in US cents, priced in SOL via Pyth at create_token (appended, v2).",
               "0 = no fee. Capped at MAX_LAUNCH_FEE_USD_CENTS."
             ],
+            "type": "u16"
+          },
+          {
+            "name": "sell_protocol_fee_bps",
+            "docs": [
+              "DEEP V1 (appended, v3). Protocol fee on SELLS; `protocol_fee_bps` is the BUY rate."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "max_reward_bps",
+            "docs": [
+              "The CURRENT maximum reward rate a creator may choose at `create_token` (eighth round,",
+              "2026-10-07), at most the hard ceiling `math::MAX_REWARD_BPS` (500). Changed through the",
+              "config timelock. It applies to new launches only: a live curve keeps its rate, and",
+              "`graduate` never looks at it."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "reserved_bps",
+            "docs": ["RESERVED (v3 layout): stored, read by no instruction."],
             "type": "u16"
           }
         ]
@@ -1569,6 +2226,23 @@
           {
             "name": "launch_fee_usd_cents",
             "docs": ["Launch fee in US cents (0..=MAX_LAUNCH_FEE_USD_CENTS). Appended in v2."],
+            "type": "u16"
+          },
+          {
+            "name": "sell_protocol_fee_bps",
+            "docs": [
+              "Appended in v3 (DEEP V1): sell-side protocol fee; `protocol_fee_bps` is the buy side."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "max_reward_bps",
+            "docs": ["Appended in v3: the current maximum reward rate for new launches (<= 500)."],
+            "type": "u16"
+          },
+          {
+            "name": "reserved_bps",
+            "docs": ["Appended in v3. RESERVED: stored, read by no instruction."],
             "type": "u16"
           }
         ]
@@ -1659,6 +2333,51 @@
       }
     },
     {
+      "name": "Destination",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "bps",
+            "docs": ["Share of the 90% remainder, bps of 10_000."],
+            "type": "u16"
+          },
+          {
+            "name": "owed",
+            "docs": [
+              "Lamports due but not yet paid (the wallet would have stayed below rent exemption)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "paid_total",
+            "docs": ["Lamports paid to this wallet since it was added."],
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DestinationParams",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "bps",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
       "name": "Graduated",
       "type": {
         "kind": "struct",
@@ -1686,6 +2405,26 @@
           {
             "name": "timestamp",
             "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "HolderFeesSwept",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "holder_vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
           }
         ]
       }
@@ -1774,6 +2513,39 @@
       }
     },
     {
+      "name": "PendingSplitterUpdate",
+      "docs": ["The single queued splitter change (same timelock rules as `PendingConfig`)."],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "active",
+            "type": "bool"
+          },
+          {
+            "name": "eta",
+            "type": "i64"
+          },
+          {
+            "name": "queued_at",
+            "type": "i64"
+          },
+          {
+            "name": "params",
+            "type": {
+              "defined": {
+                "name": "SplitterParams"
+              }
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
       "name": "ProtocolFeesSwept",
       "type": {
         "kind": "struct",
@@ -1800,6 +2572,246 @@
           },
           {
             "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RevenueDistributed",
+      "docs": [
+        "One `distribute`. `base` is the NEW revenue of this round; `amounts[i]` is what wallet `i`",
+        "received (its share plus any previously owed lamports), `owed[i]` what it is still owed."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "base",
+            "type": "u64"
+          },
+          {
+            "name": "retained_in",
+            "type": "u64"
+          },
+          {
+            "name": "builder_amount",
+            "type": "u64"
+          },
+          {
+            "name": "builder_owed",
+            "docs": [
+              "Builder pay still due (the wallet could not receive yet); paid on a later round."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "builder_paid_total",
+            "type": "u64"
+          },
+          {
+            "name": "base_total",
+            "type": "u128"
+          },
+          {
+            "name": "wallets",
+            "type": {
+              "vec": "pubkey"
+            }
+          },
+          {
+            "name": "amounts",
+            "type": {
+              "vec": "u64"
+            }
+          },
+          {
+            "name": "owed",
+            "type": {
+              "vec": "u64"
+            }
+          },
+          {
+            "name": "retained",
+            "type": "u64"
+          },
+          {
+            "name": "wsol_unwrapped",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SplitterConfig",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "vault_bump",
+            "type": "u8"
+          },
+          {
+            "name": "count",
+            "docs": [
+              "Number of configured destinations (1..=8); `destinations[count..]` are zero."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "destinations",
+            "type": {
+              "array": [
+                {
+                  "defined": {
+                    "name": "Destination"
+                  }
+                },
+                8
+              ]
+            }
+          },
+          {
+            "name": "base_total",
+            "docs": ["Every lamport of revenue that has entered the split, ever."],
+            "type": "u128"
+          },
+          {
+            "name": "builder_paid_total",
+            "docs": [
+              "Every lamport credited to the builder, ever (= floor(base_total / 10)); of it,",
+              "`builder_owed` may still be waiting to be transferred."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "retained",
+            "docs": ["Rounding dust of the 90% split, kept in the vault for the next round."],
+            "type": "u64"
+          },
+          {
+            "name": "min_distribute_lamports",
+            "docs": ["Minimum NEW revenue for a `distribute` (default 0.01 SOL, at most 10 SOL)."],
+            "type": "u64"
+          },
+          {
+            "name": "distributions",
+            "type": "u64"
+          },
+          {
+            "name": "last_distribute_at",
+            "type": "i64"
+          },
+          {
+            "name": "destinations_paid_total",
+            "docs": [
+              "Lamports paid to the 90% destinations, ever (removed destinations included)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "builder_owed",
+            "docs": [
+              "Builder pay that is due (counted in `builder_paid_total`) but not yet transferred,",
+              "because the builder wallet would have stayed below rent exemption. Paid first on the",
+              "next `distribute` that can; never lost and never re-split."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "padding",
+            "type": {
+              "array": ["u8", 56]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "SplitterParams",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "destinations",
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "DestinationParams"
+                }
+              }
+            }
+          },
+          {
+            "name": "min_distribute_lamports",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SplitterUpdateCancelled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "eta",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SplitterUpdateQueued",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "eta",
+            "type": "i64"
+          },
+          {
+            "name": "queued_at",
+            "type": "i64"
+          },
+          {
+            "name": "params",
+            "type": {
+              "defined": {
+                "name": "SplitterParams"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "SplitterUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallets",
+            "type": {
+              "vec": "pubkey"
+            }
+          },
+          {
+            "name": "bps",
+            "type": {
+              "vec": "u16"
+            }
+          },
+          {
+            "name": "min_distribute_lamports",
             "type": "u64"
           }
         ]
@@ -1837,6 +2849,18 @@
           {
             "name": "token_total_supply",
             "type": "u64"
+          },
+          {
+            "name": "reward_model",
+            "docs": ["Appended (DEEP V1): 0 Standard, 1 Creator, 2 Holder."],
+            "type": "u8"
+          },
+          {
+            "name": "reward_bps",
+            "docs": [
+              "Appended (DEEP V1, sixth round): the reward rate the creator chose, bps per side."
+            ],
+            "type": "u16"
           }
         ]
       }
@@ -1893,6 +2917,20 @@
           {
             "name": "timestamp",
             "type": "i64"
+          },
+          {
+            "name": "reward_model",
+            "docs": ["Appended (DEEP V1). The token's reward model."],
+            "type": "u8"
+          },
+          {
+            "name": "holder_fee",
+            "docs": [
+              "Appended (DEEP V1). The reward part of the fee when the model is Holder (then",
+              "`creator_fee` is 0); 0 otherwise. `protocol_fee + creator_fee + holder_fee` is the",
+              "whole fee of the trade."
+            ],
+            "type": "u64"
           }
         ]
       }
@@ -1906,6 +2944,26 @@
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VaultTokensWithdrawn",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "recipient",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
           }
         ]
       }

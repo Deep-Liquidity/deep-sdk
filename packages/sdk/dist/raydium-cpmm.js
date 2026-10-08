@@ -9,6 +9,7 @@
 import { Buffer } from "buffer";
 import { ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync, NATIVE_MINT, TOKEN_PROGRAM_ID, } from "@solana/spl-token";
 import { PublicKey, TransactionInstruction } from "@solana/web3.js";
+import { deepSwapPoolRates, quoteDeepSwapExactIn as quoteV1ExactIn, quoteDeepSwapExactOut as quoteV1ExactOut, } from "@deepliquidity/curve-math";
 import { discriminator } from "./constants.js";
 export const CPMM_PROGRAM_ID = {
     devnet: new PublicKey("DRaycpLY18LhpbydsBWbVJtxpNv9oXPgjRSfpF2bWpYb"),
@@ -22,12 +23,13 @@ export const CPMM_PROGRAM_ID = {
 export const DEEP_AMM_PROGRAM_ID = new PublicKey("HCrCy6bzHhZ1b6bXwQAucEFkKXyzYMh3hgAR8UPrYSEP");
 /**
  * deep-amm's create-pool-fee WSOL account is fixed at BUILD time
- * (DEEP_AMM_CREATE_POOL_FEE_RECEIVER). Fill these in per cluster once deep-amm is
- * deployed; until then callers must pass it explicitly (graduateIx throws).
+ * (DEEP_AMM_CREATE_POOL_FEE_RECEIVER). DEEP V1: on every cluster it is the DEEP fee vault's
+ * WSOL ATA (`feeVaultWsolAta()` in splitter.ts), so the create-pool fee is DEEP revenue that
+ * goes through the splitter (builder 10%). Builds before V1 used the fee owner's WSOL ATA.
  */
 export const DEEP_AMM_CREATE_POOL_FEE_RECEIVER = {
-    devnet: null,
-    mainnet: null,
+    devnet: new PublicKey("EcnANJ5kYr7a8LpiH4ETkSGD3r7SDdicUn9ttf5MWCir"),
+    mainnet: new PublicKey("EcnANJ5kYr7a8LpiH4ETkSGD3r7SDdicUn9ttf5MWCir"),
 };
 export const CPMM_FEE_DENOMINATOR = 1000000n;
 const enc = new TextEncoder();
@@ -55,6 +57,35 @@ export function cpmmObservation(programId, pool) {
 }
 /** 8 + 10·32 + 5 + 7·8 + 2 + 6 + 2·8 + 28·8 */
 export const CPMM_POOL_STATE_SIZE = 637;
+/** 8 + 1 + 1 + 2 + 4·8 + 2·32 + 8 + 8 + 14·8 */
+export const CPMM_AMM_CONFIG_SIZE = 236;
+/** `AmmConfig.fee_model` / `PoolState.fee_model` values (deep-amm states/config.rs). */
+export const DEEP_AMM_FEE_MODEL = { legacy: 0, v1: 1 };
+/**
+ * Byte offsets of the DEEP V1 fields, INCLUDING the 8-byte account discriminator
+ * (`POOL_STATE_*_OFFSET` in deep-amm states/pool.rs). They were carved out of the account's
+ * zero padding, so the size is unchanged and an older pool reads 0 everywhere.
+ */
+export const CPMM_POOL_STATE_V1_OFFSETS = {
+    /** u8 */
+    feeModel: 413,
+    /** u8 */
+    rewardModel: 414,
+    /** u64 LE (`reward_rate_snapshot`) */
+    rewardRate: 421,
+};
+/**
+ * Byte offsets of the DEEP V1 fields of an AmmConfig, INCLUDING the 8-byte discriminator
+ * (`AMM_CONFIG_*_OFFSET` in deep-amm states/config.rs). `feeModel` is a u8, the rates u64 LE.
+ */
+export const CPMM_AMM_CONFIG_V1_OFFSETS = {
+    feeModel: 124,
+    buyLpFeeRate: 132,
+    buyProtocolFeeRate: 140,
+    sellLpFeeRate: 148,
+    sellProtocolFeeRate: 156,
+    maxRewardRate: 164,
+};
 function reader(data) {
     const v = new DataView(data.buffer, data.byteOffset, data.byteLength);
     let o = 8;
@@ -118,15 +149,28 @@ export function decodeCpmmPoolState(data) {
         enableCreatorFee: r.u8() === 1,
         creatorFeesToken0: 0n,
         creatorFeesToken1: 0n,
+        feeModel: 0,
+        rewardModel: 0,
+        rewardRate: 0n,
     };
     r.skip(6);
     s.creatorFeesToken0 = r.u64();
     s.creatorFeesToken1 = r.u64();
+    // DEEP V1, carved out of the zero padding (deep-amm states/pool.rs)
+    s.feeModel = r.u8();
+    s.rewardModel = r.u8();
+    r.skip(6);
+    s.rewardRate = r.u64();
     return s;
 }
 export function decodeCpmmAmmConfig(data) {
     checkDisc(data, "AmmConfig", 8 + 1 + 1 + 2 + 8 * 4 + 64 + 8);
     const r = reader(data);
+    // DEEP V1 fields, carved out of the zero padding: absent (zero) on a shorter upstream account
+    const v = new DataView(data.buffer, data.byteOffset, data.byteLength);
+    const O = CPMM_AMM_CONFIG_V1_OFFSETS;
+    const hasV1 = data.length >= O.maxRewardRate + 8;
+    const v1Rate = (o) => (hasV1 ? v.getBigUint64(o, true) : 0n);
     return {
         bump: r.u8(),
         disableCreatePool: r.u8() === 1,
@@ -140,6 +184,12 @@ export function decodeCpmmAmmConfig(data) {
         creatorFeeRate: r.u64(),
         // carved out of the account's zero padding (deep-amm states/config.rs)
         creatorFeeShareRate: data.length >= 124 ? r.u64() : 0n,
+        feeModel: hasV1 ? data[O.feeModel] : 0,
+        buyLpFeeRate: v1Rate(O.buyLpFeeRate),
+        buyProtocolFeeRate: v1Rate(O.buyProtocolFeeRate),
+        sellLpFeeRate: v1Rate(O.sellLpFeeRate),
+        sellProtocolFeeRate: v1Rate(O.sellProtocolFeeRate),
+        maxRewardRate: v1Rate(O.maxRewardRate),
     };
 }
 /** Tradable reserves = vault balance minus accrued, unclaimed fees. */
@@ -161,12 +211,106 @@ export function splitCreatorFee(creatorFee, shareRate) {
     return { creator: creatorFee - protocol, protocol };
 }
 /**
- * The total fee rate a swap on `pool` pays (per 1e6): the trade fee, plus the creator fee
- * when the pool has it enabled. Presentation only: amounts come from the quote, because
- * the two fees can be charged on different sides of the swap.
+ * The fee model `pool` is priced with. deep-amm refuses a swap when the pool and its
+ * AmmConfig are not of the same model (`FeeModelMismatch`, 6020), and so does this.
  */
-export function cpmmTotalFeeRate(config, pool) {
-    return config.tradeFeeRate + (pool.enableCreatorFee ? config.creatorFeeRate : 0n);
+export function cpmmFeeModel(config, pool) {
+    if (pool.feeModel !== config.feeModel)
+        throw new Error(`fee model mismatch: pool ${pool.feeModel}, AmmConfig ${config.feeModel} (wrong config for this pool?)`);
+    if (pool.feeModel !== DEEP_AMM_FEE_MODEL.legacy && pool.feeModel !== DEEP_AMM_FEE_MODEL.v1)
+        throw new Error(`unknown fee model ${pool.feeModel}`);
+    return pool.feeModel;
+}
+/**
+ * The rates (per 1e6) one swap of a V1 pool is charged at (`PoolState::v1_rates`): the LP and
+ * protocol rates of that side from the pool's AmmConfig, and the pool's own reward rate (0
+ * for a Standard pool), exactly as stored: never clamped. `isBuy`: the swap's input is the
+ * pool's quote token (`cpmmDirection(...).creatorFeeOnInput`). Throws unless both the pool
+ * and the config are V1, and where the program refuses to price (LP + protocol above 5%, or a
+ * reward rate above 5%: neither can be stored).
+ */
+export function deepSwapV1Rates(config, pool, isBuy) {
+    if (cpmmFeeModel(config, pool) !== DEEP_AMM_FEE_MODEL.v1)
+        throw new Error("not a V1 pool: a legacy pool is priced with the AmmConfig's legacy rates");
+    return deepSwapPoolRates({
+        isBuy,
+        rewardModel: pool.rewardModel,
+        rewardRateSnapshot: pool.rewardRate,
+        buyLpFeeRate: config.buyLpFeeRate,
+        buyProtocolFeeRate: config.buyProtocolFeeRate,
+        sellLpFeeRate: config.sellLpFeeRate,
+        sellProtocolFeeRate: config.sellProtocolFeeRate,
+    });
+}
+/**
+ * The total fee rate a swap on `pool` pays (per 1e6). Presentation only: amounts come from
+ * the quote.
+ *
+ * Legacy pool: the trade fee, plus the creator fee when the pool has it enabled (the two can
+ * be charged on different sides of the swap). `isBuy` is ignored.
+ *
+ * DEEP V1 pool (`pool.feeModel === 1`): LP + protocol + reward of ONE side, so pass `isBuy`
+ * (the input is the pool's quote token). Without it the result is the HIGHER of the two
+ * sides, i.e. the most a swap of this pool pays. A V1 pool needs the V1 fields of both
+ * arguments (a decoded PoolState and AmmConfig have them) and throws without them.
+ */
+export function cpmmTotalFeeRate(config, pool, isBuy) {
+    const poolModel = pool.feeModel ?? DEEP_AMM_FEE_MODEL.legacy;
+    // an argument without the V1 fields is a legacy one: it must not price a V1 counterpart
+    const model = cpmmFeeModel({ feeModel: config.feeModel ?? DEEP_AMM_FEE_MODEL.legacy }, { feeModel: poolModel });
+    if (model === DEEP_AMM_FEE_MODEL.legacy)
+        return config.tradeFeeRate + (pool.enableCreatorFee ? config.creatorFeeRate : 0n);
+    const { buyLpFeeRate, buyProtocolFeeRate, sellLpFeeRate, sellProtocolFeeRate } = config;
+    const { rewardModel, rewardRate } = pool;
+    if (buyLpFeeRate === undefined ||
+        buyProtocolFeeRate === undefined ||
+        sellLpFeeRate === undefined ||
+        sellProtocolFeeRate === undefined ||
+        rewardModel === undefined ||
+        rewardRate === undefined)
+        throw new Error("a V1 pool's fee rate needs the V1 fields of the pool and its AmmConfig");
+    const total = (buy) => {
+        const r = deepSwapV1Rates({ feeModel: model, buyLpFeeRate, buyProtocolFeeRate, sellLpFeeRate, sellProtocolFeeRate }, { feeModel: model, rewardModel, rewardRate }, buy);
+        return r.lpRate + r.protocolRate + r.rewardRate;
+    };
+    if (isBuy !== undefined)
+        return total(isBuy);
+    const [buy, sell] = [total(true), total(false)];
+    return buy > sell ? buy : sell;
+}
+/**
+ * What a swap of `pool` pays on each side, per 1e6, with its parts. `buy`: the swap's input
+ * is the pool's quote token; `sell`: its output is. Presentation only; amounts come from the
+ * quotes.
+ *
+ * DEEP V1 pool: the AmmConfig's LP and protocol rates of the side plus the pool's own reward
+ * rate (`deepSwapV1Rates`). Legacy pool: both sides are the same, the trade fee split by the
+ * config's protocol and fund shares (floored, the rest is the LPs') plus the creator fee when
+ * enabled. Throws when `config` is not of the pool's fee model.
+ */
+export function cpmmPoolFeeRates(config, pool) {
+    if (cpmmFeeModel(config, pool) === DEEP_AMM_FEE_MODEL.v1) {
+        const side = (isBuy) => {
+            const r = deepSwapV1Rates(config, pool, isBuy);
+            return {
+                lp: r.lpRate,
+                protocol: r.protocolRate,
+                reward: r.rewardRate,
+                total: r.lpRate + r.protocolRate + r.rewardRate,
+            };
+        };
+        return { buy: side(true), sell: side(false) };
+    }
+    const protocol = floorDiv(config.tradeFeeRate, config.protocolFeeRate, CPMM_FEE_DENOMINATOR) +
+        floorDiv(config.tradeFeeRate, config.fundFeeRate, CPMM_FEE_DENOMINATOR);
+    const reward = pool.enableCreatorFee ? config.creatorFeeRate : 0n;
+    const side = {
+        lp: config.tradeFeeRate - protocol,
+        protocol,
+        reward,
+        total: config.tradeFeeRate + reward,
+    };
+    return { buy: side, sell: { ...side } };
 }
 export const cpmmSwapEnabled = (pool, nowSec) => (pool.status & 4) === 0 && nowSec >= pool.openTime;
 // ───────────── quote (mirrors CurveCalculator::swap_base_input) ─────────────
@@ -204,6 +348,50 @@ export function quoteCpmmSwapBaseInput(args) {
     const impact = spot === 0n ? 0n : ((spot - swapped) * 10000n) / spot;
     return { amountIn: x, amountOut: out, tradeFee, creatorFee, priceImpactBps: impact };
 }
+/**
+ * Exact output on a LEGACY pool: mirrors `CurveCalculator::swap_base_output`. `amountOut` is
+ * what the trader receives; a creator fee charged on the output is added on top of it before
+ * the curve. Throws where the program fails: the (gross) output must be less than the output
+ * reserve. For a DEEP V1 pool use `quoteDeepSwapExactOut`.
+ */
+export function quoteCpmmSwapBaseOutput(args) {
+    const { amountOut: y, inputReserve: X, outputReserve: Y, config } = args;
+    if (y <= 0n)
+        throw new RangeError("amountOut must be > 0");
+    if (X <= 0n || Y <= 0n)
+        throw new RangeError("empty pool");
+    const tr = config.tradeFeeRate;
+    const cr = args.creatorFeeEnabled ? config.creatorFeeRate : 0n;
+    const D = CPMM_FEE_DENOMINATOR;
+    if (tr < 0n || cr < 0n || tr + cr >= D)
+        throw new RangeError("fee rates out of range");
+    // Fees::calculate_pre_fee_amount: ceil(post * 1e6 / (1e6 - rate))
+    const preFee = (post, rate) => rate === 0n ? post : (post * D + (D - rate) - 1n) / (D - rate);
+    let creatorFee = 0n;
+    let actualOut = y;
+    if (!args.creatorFeeOnInput) {
+        actualOut = preFee(y, cr);
+        creatorFee = actualOut - y;
+    }
+    if (actualOut >= Y)
+        throw new RangeError("amountOut is the whole output reserve or more");
+    const swapped = (X * actualOut + (Y - actualOut) - 1n) / (Y - actualOut);
+    let tradeFee;
+    let amountIn;
+    if (args.creatorFeeOnInput) {
+        amountIn = preFee(swapped, tr + cr);
+        const total = amountIn - swapped;
+        creatorFee = tr + cr === 0n ? 0n : floorDiv(total, cr, tr + cr);
+        tradeFee = total - creatorFee;
+    }
+    else {
+        amountIn = preFee(swapped, tr);
+        tradeFee = amountIn - swapped;
+    }
+    const spot = (swapped * Y) / X;
+    const impact = spot === 0n || actualOut >= spot ? 0n : ((spot - actualOut) * 10000n) / spot;
+    return { amountIn, amountOut: y, tradeFee, creatorFee, priceImpactBps: impact };
+}
 /** Which side is input, and whether the creator fee is charged on it. */
 export function cpmmDirection(pool, inputMint) {
     const zeroForOne = inputMint.equals(pool.token0Mint);
@@ -214,7 +402,119 @@ export function cpmmDirection(pool, inputMint) {
         (pool.creatorFeeOn === 2 && !zeroForOne);
     return { zeroForOne, creatorFeeOnInput };
 }
+function poolQuote(a, exactIn) {
+    const { pool, config } = a;
+    const model = cpmmFeeModel(config, pool);
+    const { zeroForOne, creatorFeeOnInput } = cpmmDirection(pool, a.inputMint);
+    const [r0, r1] = cpmmReserves(pool, a.vault0, a.vault1);
+    const [X, Y] = zeroForOne ? [r0, r1] : [r1, r0];
+    // the program cannot price a pool with an empty side (token_price_x32 divides by each)
+    if (X <= 0n || Y <= 0n)
+        throw new RangeError("empty pool");
+    const [inMint, outMint] = zeroForOne
+        ? [pool.token0Mint, pool.token1Mint]
+        : [pool.token1Mint, pool.token0Mint];
+    const ordered = (inAfter, outAfter) => zeroForOne
+        ? { reserve0After: inAfter, reserve1After: outAfter }
+        : { reserve0After: outAfter, reserve1After: inAfter };
+    if (model === DEEP_AMM_FEE_MODEL.v1) {
+        // a V1 pool stores its quote side in creatorFeeOn (1 = token0, 2 = token1), so "the
+        // creator fee is on the input" reads "the input is the quote token": a buy
+        if (pool.creatorFeeOn !== 1 && pool.creatorFeeOn !== 2)
+            throw new Error("V1 pool without a quote side (creatorFeeOn must be 1 or 2)");
+        if (a.amount <= 0n)
+            throw new RangeError("amount must be > 0");
+        const isBuy = creatorFeeOnInput;
+        const rates = deepSwapV1Rates(config, pool, isBuy);
+        const q = exactIn
+            ? quoteV1ExactIn({ amountIn: a.amount, reserveIn: X, reserveOut: Y, rates, isBuy })
+            : quoteV1ExactOut({ amountOut: a.amount, reserveIn: X, reserveOut: Y, rates, isBuy });
+        const quoteMint = isBuy ? inMint : outMint;
+        return {
+            feeModel: model,
+            zeroForOne,
+            isBuy,
+            amountIn: q.amountIn,
+            amountOut: q.amountOut,
+            tradeFee: q.lpFee + q.protocolFee,
+            lpFee: q.lpFee,
+            protocolFee: q.protocolFee,
+            fundFee: 0n,
+            feeMint: quoteMint,
+            rewardFee: q.rewardFee,
+            rewardFeeMint: quoteMint,
+            ...ordered(q.reserveInAfter, q.reserveOutAfter),
+            priceImpactBps: q.priceImpactBps,
+        };
+    }
+    const args = {
+        inputReserve: X,
+        outputReserve: Y,
+        config,
+        creatorFeeEnabled: pool.enableCreatorFee,
+        creatorFeeOnInput,
+    };
+    const q = exactIn
+        ? quoteCpmmSwapBaseInput({ ...args, amountIn: a.amount })
+        : quoteCpmmSwapBaseOutput({ ...args, amountOut: a.amount });
+    // Fees::protocol_fee / fund_fee: floored shares of the trade fee; the rest stays with LPs
+    const protocolFee = floorDiv(q.tradeFee, config.protocolFeeRate, CPMM_FEE_DENOMINATOR);
+    const fundFee = floorDiv(q.tradeFee, config.fundFeeRate, CPMM_FEE_DENOMINATOR);
+    return {
+        feeModel: model,
+        zeroForOne,
+        isBuy: null,
+        amountIn: q.amountIn,
+        amountOut: q.amountOut,
+        tradeFee: q.tradeFee,
+        lpFee: q.tradeFee - protocolFee - fundFee,
+        protocolFee,
+        fundFee,
+        feeMint: inMint,
+        rewardFee: q.creatorFee,
+        rewardFeeMint: creatorFeeOnInput ? inMint : outMint,
+        ...ordered(X + q.amountIn - protocolFee - fundFee - (creatorFeeOnInput ? q.creatorFee : 0n), Y - q.amountOut - (creatorFeeOnInput ? 0n : q.creatorFee)),
+        priceImpactBps: q.priceImpactBps,
+    };
+}
+/**
+ * Exact-input quote for any deep-amm pool, priced with the pool's own fee model: a legacy
+ * pool with upstream's math (`quoteCpmmSwapBaseInput`), a DEEP V1 pool with the side-dependent
+ * V1 math (@deep/curve-math `quoteDeepSwapExactIn`). Returns the amounts, the fee breakdown
+ * and the mint each fee is in. Throws when `config` is not of the pool's fee model (the
+ * program refuses that swap too), when the mint is not the pool's, and where the math gives
+ * up (`CurveMathError` on a V1 pool, `RangeError` on a legacy one). The program's own result
+ * is authoritative: send the swap with a slippage bound.
+ */
+export function quoteDeepSwapExactIn(a) {
+    return poolQuote(a, true);
+}
+/**
+ * Exact-output quote for any deep-amm pool (see `quoteDeepSwapExactIn`): `amount` is what the
+ * trader receives, `amountIn` what it costs. On a V1 sell the fee comes off the output, so
+ * the pool must hold the GROSS amount: asking for more than it can pay throws.
+ */
+export function quoteDeepSwapExactOut(a) {
+    return poolQuote(a, false);
+}
+const U64_MAX = (1n << 64n) - 1n;
+/** `swap_base_input(amount_in, minimum_amount_out)` */
 export function cpmmSwapBaseInputIx(a) {
+    return swapIx(a, "swap_base_input", a.amountIn, a.minimumAmountOut);
+}
+/**
+ * `swap_base_output(max_amount_in, amount_out)`: the trader receives exactly `amountOut` and
+ * pays at most `maxAmountIn`. Same accounts as `swap_base_input`.
+ */
+export function cpmmSwapBaseOutputIx(a) {
+    if (a.amountOut <= 0n)
+        throw new RangeError("amountOut must be > 0");
+    for (const v of [a.maxAmountIn, a.amountOut])
+        if (v < 0n || v > U64_MAX)
+            throw new RangeError("amount out of u64 range");
+    return swapIx(a, "swap_base_output", a.maxAmountIn, a.amountOut);
+}
+function swapIx(a, name, arg0, arg1) {
     const { zeroForOne } = cpmmDirection(a.pool, a.inputMint);
     const p = a.pool;
     const [inMint, outMint] = zeroForOne
@@ -229,9 +529,9 @@ export function cpmmSwapBaseInputIx(a) {
     const inAta = a.inputTokenAccount ?? getAssociatedTokenAddressSync(inMint, a.payer, false, inProg);
     const outAta = a.outputTokenAccount ?? getAssociatedTokenAddressSync(outMint, a.payer, false, outProg);
     const data = Buffer.alloc(8 + 16);
-    data.set(discriminator("global", "swap_base_input"), 0);
-    data.writeBigUInt64LE(a.amountIn, 8);
-    data.writeBigUInt64LE(a.minimumAmountOut, 16);
+    data.set(discriminator("global", name), 0);
+    data.writeBigUInt64LE(arg0, 8);
+    data.writeBigUInt64LE(arg1, 16);
     return new TransactionInstruction({
         programId: a.programId,
         keys: [
