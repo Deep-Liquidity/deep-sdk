@@ -35,24 +35,25 @@ ESM only, with TypeScript declarations. Node ≥ 22 or any modern browser bundle
 ## Quick start
 
 ```ts
-import { quoteBuy, quoteSell, depthBps, marketCapLamports } from "@deepliquidity/curve-math";
+import { quoteBuyV1, quoteSellV1, depthBps, marketCapLamports } from "@deepliquidity/curve-math";
 
-// `state` and the fee rates come from the token's BondingCurve account (decode it with the SDK).
-const fees = { protocolFeeBps: 70n, creatorFeeBps: 30n };
-const buy = quoteBuy(state, 1_000_000_000n, fees); // 1 SOL budget
+// `state` and `fees` come from the token's BondingCurve account: decode it with the SDK
+// (`decodeBondingCurve`, `curveFees`). Every token keeps the rates it was launched with.
+const buy = quoteBuyV1(state, 1_000_000_000n, fees); // 1 SOL budget
 buy.solIn; // lamports actually charged (less than the budget when the buy completes the curve)
-buy.fees; // { total, protocol, creator }: total = ceil(solIn × 100 / 10_000)
+buy.fees; // { total, protocol, creator }: rounded up, on top of what reaches the curve
+buy.routing; // who receives the reward part: the creator or the token's holders
 buy.tokensOut; // floor(vToken × net / (vSol + net)), capped at the tokens left
 buy.next; // the curve state after the trade
 
-const sell = quoteSell(state, 1_000_000n, fees);
+const sell = quoteSellV1(state, 1_000_000n, fees);
 sell.solOut; // floor(vSol × tokens / (vToken + tokens)) minus fees rounded up
 
 depthBps(state); // curve progress in basis points of the curve supply (rounded down)
 marketCapLamports(state); // fully diluted value at the spot price: not liquidity
 ```
 
-`quoteBuy`/`quoteSell` throw `CurveMathError` with the program's error names (`ZeroAmount`,
+`quoteBuyV1`/`quoteSellV1` throw `CurveMathError` with the program's error names (`ZeroAmount`,
 `CurveComplete`, `InsufficientReserves`, `SlippageExceeded`, `InvalidFee`, `InvalidParams`,
 `Overflow`) where the program would reject.
 

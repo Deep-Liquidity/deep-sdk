@@ -45,8 +45,8 @@ import { DEEP_CURVE_PROGRAM_ID, DEEP_AMM_PROGRAM_ID } from "@deepliquidity/sdk";
 ## Quick start: quote and build a curve buy
 
 ```ts
-import { quoteBuy } from "@deepliquidity/curve-math";
-import { applySlippage, buyIx, curvePda, decodeBondingCurve } from "@deepliquidity/sdk";
+import { quoteBuyV1 } from "@deepliquidity/curve-math";
+import { applySlippage, buyIx, curveFees, curvePda, decodeBondingCurve } from "@deepliquidity/sdk";
 import { ComputeBudgetProgram, Connection, PublicKey, Transaction } from "@solana/web3.js";
 
 const conn = new Connection("https://api.devnet.solana.com", "confirmed");
@@ -54,11 +54,9 @@ const mint = new PublicKey("<mint>");
 const user = new PublicKey("<wallet>");
 
 const curve = decodeBondingCurve((await conn.getAccountInfo(curvePda(mint)))!.data);
-const fees = {
-  protocolFeeBps: BigInt(curve.protocolFeeBps),
-  creatorFeeBps: BigInt(curve.creatorFeeBps),
-};
-const q = quoteBuy(curve.state, 100_000_000n, fees); // 0.1 SOL in, fees included
+// the token's own terms: DEEP's buy and sell rate, its reward rate and reward model
+const fees = curveFees(curve);
+const q = quoteBuyV1(curve.state, 100_000_000n, fees); // 0.1 SOL in, fees included
 const tx = new Transaction().add(
   ComputeBudgetProgram.setComputeUnitLimit({ units: 80_000 }),
   buyIx({

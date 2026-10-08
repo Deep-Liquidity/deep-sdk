@@ -49,7 +49,7 @@ and has its readable source in `src/`.
 ## Quick start
 
 ```ts
-import { quoteBuy } from "@deepliquidity/curve-math";
+import { quoteBuyV1 } from "@deepliquidity/curve-math";
 import { curvePda, decodeBondingCurve, DEEP_CURVE_PROGRAM_ID } from "@deepliquidity/sdk";
 import { Connection, PublicKey } from "@solana/web3.js";
 
