@@ -702,6 +702,70 @@ export interface TvlPoint {
   tvl: string;
 }
 
+// ───────────── creator history (the Creator page's charts) ─────────────
+
+/** A token the wallet launched, as named in its history. */
+export interface CreatorHistoryToken {
+  mint: string;
+  symbol: string;
+  name: string;
+}
+
+/**
+ * One token's indexed trading in one time bucket. Every amount is lamports as a decimal string
+ * and an exact sum of indexed events, never an estimate. Only buckets with at least one trade
+ * are listed: a (bucket, token) that is missing had no trades.
+ */
+export interface CreatorHistoryBucket {
+  /** Bucket start, unix seconds. */
+  time: number;
+  mint: string;
+  /** Trades in the bucket, curve and DeepSwap together. */
+  trades: number;
+  /** SOL volume on the bonding curve. */
+  curveVolume: string;
+  /** SOL volume in the token's DeepSwap graduation pool. */
+  poolVolume: string;
+  /** Curve reward fees paid to the creator (TradeEvent.creator_fee). 0 on a Holder Rewards token. */
+  curveCreatorFees: string;
+  /**
+   * DeepSwap V1 reward fees of the token's graduation pool, counted only when that pool's reward
+   * goes to this creator (a Creator Rewards pool): 100% the creator's.
+   */
+  poolCreatorFees: string;
+  /**
+   * The creator fee charged by a legacy (pre-V1, devnet only) graduation pool, GROSS: the
+   * creator and DEEP share it when it is settled on chain, so it is not the creator's income
+   * and is never added to the two fields above.
+   */
+  poolLegacyCreatorFees: string;
+}
+
+/**
+ * GET /v1/creators/:creator/history?days=30: fees earned and volume of the tokens a wallet
+ * launched, per token and time bucket.
+ *
+ * Buckets are hourly for `days` ≤ 7 and daily (UTC) otherwise, as in TvlPoint. The window is
+ * the `days` ending with the bucket that contains "now": `from` and `to` are its first and last
+ * bucket starts. Fees are what the trades charged for the creator (accrued on the curve and
+ * pool accounts), whether or not they were claimed. Reward fees of pools the wallet opened
+ * itself with `initialize_v1` (not graduation pools) are not part of this series.
+ */
+export interface CreatorHistory {
+  creator: string;
+  days: number;
+  bucketSeconds: number;
+  /** First bucket start of the window, unix seconds. */
+  from: number;
+  /** Last bucket start of the window (the bucket that contains "now"), unix seconds. */
+  to: number;
+  /** Every token the wallet launched, oldest first, including ones without a trade in the window. */
+  tokens: CreatorHistoryToken[];
+  /** Oldest first, then by mint. */
+  buckets: CreatorHistoryBucket[];
+  source: "indexer";
+}
+
 // ───────────── creator link updates (signed by the token's creator after launch) ─────────────
 
 /**

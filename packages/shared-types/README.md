@@ -17,7 +17,7 @@ npm install @deepliquidity/shared-types
 ```ts
 import type { TokenSummary, Trade, PairSummary } from "@deepliquidity/shared-types";
 
-const api = "https://api.deepliquidity.fun"; // devnet data
+const api = "https://api.deepliquidity.fun";
 const tokens = (await (await fetch(`${api}/v1/tokens`)).json()) as TokenSummary[];
 const trades = (await (
   await fetch(`${api}/v1/tokens/${tokens[0]!.mint}/trades?limit=20`)

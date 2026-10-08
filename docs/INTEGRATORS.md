@@ -12,12 +12,10 @@ public HTTP API.
 > Pools created on devnet before 2026-10-08 keep the legacy fee model: read `fee_model` on
 > every pool. The live values, compute units and examples in this guide were measured on devnet.
 
-Where the numbers come from: program ids, PDAs and decoders from `@deepliquidity/sdk`; byte layouts and
-error codes generated from the committed IDLs of all three programs, with the account lists of
-the instructions the 2026-10-07 security review changed (`packages/sdk/scripts/gen-integrator-tables.ts`);
-fee maths from `@deepliquidity/curve-math`, `programs/deep-curve/src/math.rs`, `pyth.rs` and deep-amm
-`curve/fees.rs`; live values and compute units from devnet reads and simulations on 2026-10-06
-(`packages/sdk/examples`, `packages/sdk/scripts/idl-devnet-check.ts`).
+Where the numbers come from: program ids, PDAs and decoders from `@deepliquidity/sdk`; byte layouts,
+instruction account lists and error codes generated from the IDLs of all three programs; fee
+maths from `@deepliquidity/curve-math`, which mirrors the programs; live values and compute units from
+devnet reads and simulations on 2026-10-06 (`packages/sdk/examples`).
 
 ## 1. Packages, IDLs and API
 
@@ -28,16 +26,13 @@ fee maths from `@deepliquidity/curve-math`, `programs/deep-curve/src/math.rs`, `
 | API types              | `@deepliquidity/shared-types`                                                                       |
 | Anchor IDLs (spec 0.1) | `idl/deep_curve.json`, `idl/deep_amm.json`; in the npm package `<sdk>/idl/deep_curve.json` |
 | HTTP API               | `https://api.deepliquidity.fun/v1/…`, OpenAPI 3.1 at `GET /v1/openapi.json`                |
-| Jupiter adapter        | `integrations/jupiter` (Rust `Amm` trait implementation, see `docs/JUPITER.md`)            |
 
-The npm packages are **not published yet**. `packages/publish.config.json` holds the planned
-scope (placeholder `@deepliquidity/*`); `node scripts/pack-packages.mjs` builds and stages them
-and dry-runs `npm pack` (section 14).
+The npm packages are **not published yet**: use the packages from the SDK repository.
 
 There is no on-chain Anchor IDL account for either program; the repository files are the
-source. `scripts/idl-devnet-check.ts` checks them against devnet: every live account of every IDL
-type has the IDL's size and decodes to the same values with the IDL layout and with the SDK, and
-the same holds for the events in recent transactions.
+source. They are checked against devnet: every live account of every IDL type has the IDL's
+size and decodes to the same values with the IDL layout and with the SDK, and the same holds for
+the events in recent transactions.
 
 ## 2. Addresses per cluster
 
@@ -102,8 +97,7 @@ All offsets include the 8-byte Anchor discriminator (`sha256("account:<Name>")[0
 are little-endian; `pubkey` is 32 bytes. deep-amm's PoolState is `repr(C, packed)` (zero-copy),
 the others are borsh; both lay fields out back to back. Decoders: `decodeConfig`,
 `decodeBondingCurve`, `decodePendingConfig`, `decodeCpmmPoolState`, `decodeCpmmAmmConfig`.
-The sizes below are the DEEP V1 (v3) layouts, which every devnet account has since the
-2026-10-08 migration: Config 221 bytes (`CONFIG_SIZE`), BondingCurve 196 (`BONDING_CURVE_SIZE`),
+The sizes below are the DEEP V1 layouts: Config 221 bytes (`CONFIG_SIZE`), BondingCurve 196 (`BONDING_CURVE_SIZE`),
 PendingConfig 173 (`PENDING_CONFIG_SIZE`). The decoders also accept the earlier sizes (Config
 213 / 215, BondingCurve 177 / 185, PendingConfig 165 / 167) and then report the sell rate equal
 to the buy rate and no reward model. PoolState (637) and AmmConfig (236) did not change size:
@@ -320,7 +314,7 @@ Notes:
 
 ### RewardsConfig (deep_rewards, 390 bytes)
 
-deep-rewards' one config account (`rewardsConfigPda()`, decoder `decodeRewardsConfig`). `root_delay_seconds` is how long a published Holder Rewards root waits before anyone can claim against it (at least 43 200 s = 12 h on chain; 86 400 s = 24 h on mainnet). `guardian` is a veto-only key: it may sign `veto_root` and `set_paused` and nothing else (mainnet: the DEEP Pause vault); the zero key means none is set.
+deep-rewards' one config account (`rewardsConfigPda()`, decoder `decodeRewardsConfig`). `root_delay_seconds` is how long a published Holder Rewards root waits before anyone can claim against it (at least 43 200 s = 12 h on chain; 86 400 s = 24 h on mainnet). `guardian` is a veto-only key: it may sign `veto_root` and `set_paused` and nothing else; the zero key means none is set.
 
 Discriminator `[27, 65, 81, 182, 166, 101, 190, 207]`.
 
@@ -489,7 +483,7 @@ Emitted by `distribute`. Borsh, in order: `base` u64 (new revenue this round), `
 
 ### BuilderFeePaid (deep_curve, 64 bytes; retired)
 
-Emitted only by the pre-V1 build (the 5/70 sweep share); still decoded for history.
+Emitted only by builds before DEEP V1 (devnet history); still decoded.
 Discriminator `[177, 54, 109, 52, 55, 26, 75, 41]`.
 
 | offset | field             | type    |
@@ -581,7 +575,7 @@ Discriminator `[199, 3, 11, 188, 36, 121, 207, 192]`.
 3. **Complete.** The buy that sells the last curve token emits `CurveCompleted` and sets
    `complete`. From then on `buy` and `sell` fail with `CurveComplete` (6003).
 4. **Graduated.** Anyone can send `graduate` (it is permissionless: no account signs, the
-   sender pays the network fee and receives nothing; DEEP runs a crank that does it within about
+   sender pays the network fee and receives nothing; it normally follows completion within about
    30 s, and `Config.migration_authority` is read by no instruction). It creates the
    DeepSwap pool at `graduationPoolPda(mint)`, seeds it at the curve's final price, **burns every
    LP token**, records `BondingCurve.pool` and emits `Graduated`. The pool's `open_time` is 0, so
@@ -625,9 +619,8 @@ Both fees stay on the BondingCurve account: the creator share until `claim_creat
 protocol share until `sweep_protocol_fees` moves it to the DEEP fee vault, a Holder token's
 reward until `sweep_holder_fees` moves it to its holder vault. `quoteBuyV1(state, solIn,
 curveFees(curve))` returns all of these (`quoteBuy` is the pre-V1 form with one protocol rate).
-Devnet, 2026-10-08 campaign: 17 curve trades on Standard, Creator (100 and 500 bps) and Holder
-(100 bps) tokens, every quote equal to the program's TradeEvent in every field
-(docs/live-tests/devnet-2026-10-08-v1-fees.md). Example: 0.5 SOL into a 100 bps Creator token
+Checked on devnet on 2026-10-08: 17 curve trades on Standard, Creator (100 and 500 bps) and
+Holder (100 bps) tokens, every quote equal to the program's TradeEvent in every field. Example: 0.5 SOL into a 100 bps Creator token
 pays 11,250,000 lamports: 6,250,000 to DEEP and 5,000,000 to the creator.
 
 ### Curve sell (`sell(tokens_in, min_sol_out, deadline)`) — exact tokens in
@@ -643,12 +636,10 @@ sol_out        = sol_from_curve − fee_total
 1,000 bps per side (`MAX_TOTAL_FEE_BPS`) and a reward rate at 500 bps (`MAX_REWARD_BPS`), both
 enforced on chain.
 
-### Where DEEP's fees go: the fee vault and splitter (DEEP V1 Phase 1)
+### Where DEEP's fees go: the fee vault and splitter
 
-**Traders pay exactly the same** as before: no buy/sell quote above changes
-(`fixtures/curve-vectors.json` trade vectors are unchanged). What changed is where DEEP's share
-goes: every DEEP fee lands in one deep-curve PDA, the fee vault `8a2X…uwBVZ`, and the
-permissionless `distribute` splits it:
+None of this changes what a trader pays. Every DEEP fee lands in one deep-curve PDA, the fee
+vault `8a2X…uwBVZ`, and the permissionless `distribute` splits it:
 
 | Source                              | Rate (devnet policy)                 | Into the vault by                                   |
 | ----------------------------------- | ------------------------------------ | --------------------------------------------------- |
@@ -670,13 +661,12 @@ retained       = pool − Σ destination_i                                  (car
 ```
 
 The builder wallet (`DEEP_BUILDER_WALLET`; `DEEP_BUILDER_WALLET.devnet` / `.mainnet` in
-`@deepliquidity/sdk`) and the 10% are compiled in; the 90% goes to the destinations in `SplitterConfig`
-(1–8 wallets; devnet and mainnet start with one, the DEEP Treasury wallet), changeable only through
-the Config timelock. `distributeIx({ builder, destinations })` takes the destinations as trailing
-writable accounts in config order; the fee keeper sends it at 00:00 and 12:00
-America/Los_Angeles (`nextDistributionAt`). Example: 12,500,000 lamports reach the vault → builder
-1,250,000, destinations 11,250,000. `GET /splitter` (DEEP API) reports the vault, totals and
-history. `sweepProtocolFeesIx(mint)` and `graduateIx(…)` no longer take a builder account.
+`@deepliquidity/sdk`) and the 10% are fixed in the program; the 90% goes to the destinations in
+`SplitterConfig` (1–8 wallets; today one, the DEEP Treasury wallet).
+`distributeIx({ builder, destinations })` takes the destinations as trailing writable accounts in
+config order. Example: 12,500,000 lamports reach the vault → builder 1,250,000, destinations
+11,250,000. `GET /splitter` (DEEP API) reports the vault, totals and history.
+`sweepProtocolFeesIx(mint)` and `graduateIx(…)` take no builder account.
 
 ### Launch fee (`create_token`)
 
@@ -686,9 +676,8 @@ Charged only when `Config.launch_fee_usd_cents > 0` (devnet today: 200 = $2.00; 
 
 - account owned by the Pyth receiver, feed id
   `ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d`, fully verified;
-- age ≤ the build's maximum: **600 s on devnet** (the deployed devnet binary is the `devnet`
-  feature build; its ProgramData contains the marker `DEEP devnet build: Pyth max price age 600 s`),
-  **120 s** for the default build that mainnet will use (`pythMaxPriceAgeSeconds(cluster)`);
+- age ≤ the cluster's maximum: **600 s on devnet**, **120 s on mainnet**
+  (`pythMaxPriceAgeSeconds(cluster)`);
 - `price > 0` and `conf × 10_000 ≤ price × 200` (confidence within 2%).
 
 `lamports = ceil(usd_cents × 10^7 × 10^(−exponent) / price)` for `exponent ≤ 0`
@@ -727,8 +716,8 @@ the reward part is 100% `pool_creator`'s (the creator, or the token's holder vau
 its `SwapEvent` (`decodeAmmSwapFeesV1`). `quoteDeepSwapExactIn` / `quoteDeepSwapExactOut` price
 either model from the decoded pool, its config and the two vault balances. Caps (program
 constants): `L + D` at most 50,000 per side, `R` at most 50,000, so a side never exceeds 10%.
-The admin changes the four config rates and `max_reward_rate` (new pools only) instantly
-(KNOWN_ISSUES DA-10); nobody can change a pool's `R` or its recipient.
+The four config rates and `max_reward_rate` (new pools only) can change at once, with no delay;
+nobody can change a pool's `R` or its recipient.
 
 | V1 swap, 100 bps pool          | total      | LPs       | DEEP      | reward     |
 | ------------------------------ | ---------- | --------- | --------- | ---------- |
@@ -754,16 +743,13 @@ when the pool has `enable_creator_fee` (else 0):
 - Constant product: `out = floor(in_after_fees × reserve_out / (reserve_in + in_after_fees))`.
 - Of the trade fee, `floor(trade_fee × protocol_fee_rate / 1e6)` (protocol, DEEP) and
   `floor(trade_fee × fund_fee_rate / 1e6)` (fund: 0 in V1) leave the reserves into the pool's fee
-  counters; the rest stays in the pool for LPs. DEEP's part reaches the fee vault, where the
-  builder gets 10% of it at the next `distribute`.
+  counters; the rest stays in the pool for LPs. DEEP's part reaches the fee vault.
 
-  | swap (input)    | trade fee  | DEEP (333,333) | of which builder (10%, at distribute) | LPs        |
-  | --------------- | ---------- | -------------- | ------------------------------------- | ---------- |
-  | 1 SOL           | 3,000,000  | 999,999        | ≈ 99,999.9                            | 2,000,001  |
-  | 7.000123457 SOL | 21,000,371 | 7,000,116      | ≈ 700,011.6                           | 14,000,255 |
-  | 0.001 SOL       | 3,000      | 999            | ≈ 99.9                                | 2,001      |
-
-  The builder column is indicative: the splitter floors over the cumulative total, not per swap.
+  | swap (input)    | trade fee  | DEEP (333,333) | LPs        |
+  | --------------- | ---------- | -------------- | ---------- |
+  | 1 SOL           | 3,000,000  | 999,999        | 2,000,001  |
+  | 7.000123457 SOL | 21,000,371 | 7,000,116      | 14,000,255 |
+  | 0.001 SOL       | 3,000      | 999            | 2,001      |
 
 - The creator fee accrues in `creator_fees_token_*`, outside the reserves. `collect_creator_fee`
   (signed by `pool_creator`) or `collect_creator_fee_permissionless` (anyone pays) settles it:
@@ -771,8 +757,8 @@ when the pool has `enable_creator_fee` (else 0):
   account for that creator overrides the rate), the creator receives the rest.
 - `quoteCpmmSwapBaseInput` implements the legacy maths (`quoteDeepSwapExactIn` picks the model
   from the pool); the devnet simulations matched the program's SwapEvent exactly in both
-  directions (section 11), and the 2026-10-08 campaign did the same for 17 swaps on three V1
-  pools and 5 on a legacy pool.
+  directions (section 11), and a devnet check on 2026-10-08 did the same for 17 swaps on three
+  V1 pools and 5 on a legacy pool.
 
 `swap_base_output(max_amount_in, amount_out)` is the exact-out variant (the required input rounds
 up). The SDK builds `swap_base_input` only; the accounts are the same 13 in the same order
@@ -782,7 +768,7 @@ up). The SDK builds `swap_base_input` only; the accounts are the same 13 in the 
 
 deep-amm pools can hold Token-2022 mints whose extensions are on its allow list
 (TransferFeeConfig, MetadataPointer, TokenMetadata, InterestBearingConfig, ScaledUiAmountConfig;
-others need a per-mint `SupportMintAssociated` entry the admin creates). For a swap:
+others need a per-mint `SupportMintAssociated` entry, which DEEP creates). For a swap:
 input transfer fee = `ceil(amount_in × bps / 10_000)` capped at the mint's maximum for the
 current epoch; the curve prices what reaches the vault; the output transfer fee is withheld from
 `amount_out`; `minimum_amount_out` is checked against what the trader receives
@@ -804,18 +790,17 @@ this applies to them.
 | `withdraw`         | `minimum_token_0/1_amount` (6005)                                   | none                                                                              |
 
 `applySlippage(expected, bps)` rounds the floor down. A curve can complete between quote and
-send: on `CurveComplete` (6003) route the trade to the graduation pool once it exists. The admin
-can pause deep-curve (`Paused` 6000 for create, buy and sell; claims still work) and DeepSwap
-pools (`status` bits). The buyer's token account is created by `buy` itself if missing
+send: on `CurveComplete` (6003) route the trade to the graduation pool once it exists.
+deep-curve can be paused (`Paused` 6000 for create, buy and sell; claims still work) and so can
+DeepSwap pools (`status` bits). The buyer's token account is created by `buy` itself if missing
 (`init_if_needed`, the buyer pays its rent).
 
-### Instructions the 2026-10-07 security review changed
+### Instruction accounts and arguments
 
-Account order and arguments from the committed IDLs (the SDK builders `createTokenIx`,
-`graduateIxs`, `distributeIx`, `initializeV1Ix`, `rewardsVetoRootIx` and `rewardsSetPausedIx`
-produce exactly these). Each instruction's data starts with its 8-byte discriminator. These are
-the program sources after the security review: a cluster runs them once its programs are upgraded
-to that build (docs/PROGRAMS.md lists what changed and the upgrade order).
+Account order and arguments from the IDLs, for the instructions whose requirements the account
+list alone does not show (the SDK builders `createTokenIx`, `graduateIxs`, `distributeIx`,
+`initializeV1Ix`, `rewardsVetoRootIx` and `rewardsSetPausedIx` produce exactly these). Each
+instruction's data starts with its 8-byte discriminator.
 
 #### create_token (deep_curve)
 
@@ -1071,8 +1056,7 @@ Anchor custom errors appear as `{"InstructionError":[ix,{"Custom":<code>}]}` and
 ## 10. Compute units
 
 Measured on devnet (`unitsConsumed`), not estimates. "Simulated" = this guide's examples on
-2026-10-06; "live" = confirmed transactions of the 2026-10-04 DeepSwap campaign
-(`docs/live-tests/devnet-2026-10-04-deepswap.md`); LiteSVM figures are in `docs/PROGRAMS.md`.
+2026-10-06; "live" = confirmed devnet transactions of 2026-10-04.
 
 | Instruction                                   | Measured CU                                                   | Suggested limit                    |
 | --------------------------------------------- | ------------------------------------------------------------- | ---------------------------------- |
@@ -1091,7 +1075,7 @@ Measured on devnet (`unitsConsumed`), not estimates. "Simulated" = this guide's 
 
 `packages/sdk/examples/` builds real transactions and simulates them on devnet with
 `sigVerify: false`: nothing is signed or sent and no keypair is read. `--payer <public key>`
-chooses whose account the simulation runs as (default: a funded devnet key from the Config).
+chooses whose account the simulation runs as (default: a funded devnet account).
 
 ```bash
 pnpm --filter @deepliquidity/sdk exec tsx examples/read-curve.ts
@@ -1118,9 +1102,8 @@ Results on 2026-10-06:
 ## 12. HTTP API
 
 Base `https://api.deepliquidity.fun`. The OpenAPI 3.1 document is served at
-`GET /v1/openapi.json` (`cache-control: public, max-age=300`); its parameters are the server's own
-validation schemas and its response schemas are tested against real responses
-(`apps/api/test/openapi.test.ts`).
+`GET /v1/openapi.json` (`cache-control: public, max-age=300`); its parameters are the API's own
+validation schemas and its response schemas are tested against real responses.
 
 | Route                                                         | What                                                       |
 | ------------------------------------------------------------- | ---------------------------------------------------------- |
@@ -1129,6 +1112,7 @@ validation schemas and its response schemas are tested against real responses
 | `GET /v1/tokens/{mint}/candles?tf=`                           | `1m 5m 15m 1h 4h 24h 7d`, price in SOL per whole token     |
 | `GET /v1/tokens/{mint}/stats`                                 | 24h stats, holders from chain, sanitized metadata          |
 | `GET /v1/creators/{creator}/tokens`                           | a creator's launches                                       |
+| `GET /v1/creators/{creator}/history?days=1..90`               | a creator's fees earned and volume, per token and bucket   |
 | `GET /v1/traders/{wallet}/trades?limit=1..100`                | a wallet's curve and DeepSwap trades                       |
 | `GET /v1/pools`, `/v1/pools/{address}/tvl`                    | graduation pools with on-chain LP status, TVL history      |
 | `GET /v1/pairs`, `/v1/pairs/{address}`, `/trades`, `/candles` | every DeepSwap pool, any pair                              |
@@ -1137,14 +1121,13 @@ validation schemas and its response schemas are tested against real responses
 | `GET /v1/price/sol`, `/v1/network`, `/v1/status`              | Pyth SOL/USD, cluster info, monitors + program hash check  |
 | `GET /v1/ws` (WebSocket)                                      | `{"subscribe":"tokens"}` / `{"subscribe":"trades:<mint>"}` |
 
-Rate limits (per client IP, `@fastify/rate-limit`, from `apps/api/src`): **300 requests per
-minute** by default; `/v1/tokens/{mint}/stats` and `/v1/pools/{address}/tvl` **120 per minute**;
+Rate limits (per client IP): **300 requests per minute** by default; `/v1/tokens/{mint}/stats` and `/v1/pools/{address}/tvl` **120 per minute**;
 `POST /v1/metadata` 10 per minute; `POST /v1/reports` 5 per minute; `POST
 /v1/tokens/{mint}/links` 10 per minute per IP and 6 per 10 minutes per mint. Responses carry
 `x-ratelimit-limit`, `x-ratelimit-remaining`, `x-ratelimit-reset`; a 429 carries `retry-after`.
 WebSocket: 20 topics per connection, 4,096-byte client messages; messages are
 `{"topic": "...", "data": TokenSummary | Trade}`. Browser CORS is limited to DEEP's own sites on
-the hosted API: call it from a server. Amounts are decimal strings of integers. The indexer is a
+the hosted API: call it from a server. Amounts are decimal strings of integers. The API is a
 convenience; build transactions from chain reads.
 
 ## 13. Differences from pump.fun and from Raydium CPMM
@@ -1161,50 +1144,29 @@ its own IDL; this list only states DEEP's behaviour):
 - A USD launch fee priced from Pyth, fail-closed (section 7).
 - Graduation creates a pool on **DeepSwap (deep-amm)**, not on a third-party DEX, at
   `graduationPoolPda(mint)`, and burns all LP. Completion and graduation are separate steps
-  (`CurveCompleted`, then `Graduated` from the crank).
+  (`CurveCompleted`, then `Graduated` from `graduate`).
 - Tokens are legacy SPL Token mints with immutable Metaplex metadata; mint authority revoked, no
   freeze authority.
 
 DeepSwap compared with Raydium CPMM (cp-swap): deep-amm is a fork of raydium-cp-swap commit
-`b3187ae` (Apache-2.0, `programs/deep-amm/NOTICE`).
+`b3187ae` (Apache-2.0; see the SDK's `NOTICE`).
 
 - **Same**: account layouts (PoolState 637 bytes, AmmConfig 236 bytes), instruction names,
-  arguments and account order, discriminators, seeds, SwapEvent, swap maths (`src/curve/*` is
-  unmodified). A cp-swap integration works by swapping the program id.
-- **Different program id** (`HCrCy6…`), one id for every cluster, and DEEP-controlled privileged
-  keys (admin, fee owners, create-pool fee receiver) fixed at build time.
+  arguments and account order, discriminators, seeds, SwapEvent and the constant-product swap
+  maths. A cp-swap integration works by swapping the program id (fees: section 7).
+- **Different program id** (`HCrCy6…`), one id for every cluster.
 - **Graduation pools live at a deep-curve PDA**, not at the cp-swap pool PDA (section 3).
 - `swap_base_output` rejects an `amount_out` ≥ the whole output reserve with
   `InsufficientVault` (6012) instead of panicking.
 - Graduation pools charge the creator fee (in WSOL) on top of the trade fee; pools created with
   the permissionless `initialize` never do.
-- Not routed by Jupiter yet: `docs/JUPITER.md` has the adapter and what is pending.
+- Not routed by Jupiter yet.
 
-## 14. Publishing the packages (owner decisions)
+## 14. How this was verified
 
-Nothing is published. To prepare a release:
-
-```bash
-node scripts/pack-packages.mjs          # tsc → dist/, stage in target/npm/, smoke tests, npm pack --dry-run
-node scripts/check-public-sdk.mjs       # leak check of the exact npm file lists
-```
-
-The staged packages get the scope from `packages/publish.config.json` (placeholder
-`@deepliquidity`), `workspace:*` replaced by versions, and exports pointing at `dist/`. The
-workspace packages stay `private` and keep exporting `src/`, so the apps are unaffected. Before
-publishing, the owner decides: the npm scope and org, whether the repository (or an SDK-only
-repository) is public and its `repository` field, and the licences (packages: MIT for
-`curve-math` and `shared-types`; `MIT AND Apache-2.0` for the SDK, whose cp-swap ports are
-Apache-2.0 per its `NOTICE`; the repository root has no LICENSE file yet).
-
-## 15. How this was verified
-
-- `packages/sdk/test/idl.test.ts`: IDL ids, every discriminator, account sizes, and every field of
-  every decoded account and event against the IDL layout (random bytes decoded both ways).
-- `packages/sdk/scripts/idl-devnet-check.ts`: the same against every live devnet account and the
-  events of recent transactions; both ProgramData hashes equal the recorded release hashes.
-- `packages/sdk/test/browser-globals.test.ts` and `scripts/pack-packages.mjs`: the packages load
-  and build instructions in a browser bundle with no global `Buffer`.
-- `apps/api/test/openapi.test.ts`: route coverage both ways, parameters, rate limits, responses.
-- Not run here: the Rust side of the IDL parity (`programs/deep-curve/tests/idl_parity.rs`,
-  needs Docker) and anything on mainnet.
+- IDL ids, every discriminator, account sizes, and every field of every decoded account and
+  event are tested against the IDL layout (random bytes decoded both ways).
+- The same is checked against every live devnet account and the events of recent transactions.
+- The packages load and build instructions in a browser bundle with no global `Buffer`.
+- The OpenAPI document is tested against the API: route coverage both ways, parameters, rate
+  limits, responses.
