@@ -1,5 +1,5 @@
 import { ASSOCIATED_TOKEN_PROGRAM_ID, NATIVE_MINT, TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { PublicKey, TransactionInstruction } from "@solana/web3.js";
+import { type AccountMeta, PublicKey, TransactionInstruction } from "@solana/web3.js";
 import { type DeepSwapRates } from "@deepliquidity/curve-math";
 export declare const CPMM_PROGRAM_ID: {
     readonly devnet: PublicKey;
@@ -343,6 +343,11 @@ export interface CpmmSwapArgs {
     /** defaults to the payer's ATAs */
     inputTokenAccount?: PublicKey;
     outputTokenAccount?: PublicKey;
+    /**
+     * Transfer-hook accounts for a Token-2022 mint with an active hook
+     * (`resolveTransferHookAccounts`), appended last. Omit for mints without a hook.
+     */
+    hookAccounts?: AccountMeta[];
 }
 type CpmmSwapAccounts = Omit<CpmmSwapArgs, "amountIn" | "minimumAmountOut">;
 export interface CpmmSwapOutputArgs extends CpmmSwapAccounts {

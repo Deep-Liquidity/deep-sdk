@@ -165,3 +165,12 @@ export interface RewardsVerifyResponse {
   }[];
   source: "chain";
 }
+
+/**
+ * POST /v1/rewards/squads and GET /v1/rewards/squads/:multisig: a Squads v4 multisig's vaults
+ * registered for Holder Rewards (empty `vaults` when the multisig was never registered).
+ */
+export interface SquadsVaultsResponse {
+  multisig: string;
+  vaults: { vault: string; index: number }[];
+}

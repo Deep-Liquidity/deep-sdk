@@ -13,7 +13,12 @@ import {
   TOKEN_2022_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
-import { PublicKey, SystemProgram, TransactionInstruction } from "@solana/web3.js";
+import {
+  type AccountMeta,
+  PublicKey,
+  SystemProgram,
+  TransactionInstruction,
+} from "@solana/web3.js";
 import {
   DEEPSWAP_MAX_POOL_FEE_RATE,
   DEEPSWAP_MAX_REWARD_RATE,
@@ -491,6 +496,11 @@ export function deepAmmCollectProtocolFeeToVaultIx(a: {
   poolState: CollectFeePool;
   protocolOwner: PublicKey;
   programId?: PublicKey;
+  /**
+   * Transfer-hook accounts for a hooked mint. Without them deep-amm leaves that side accrued
+   * (as it does for a mint its issuer paused) and collects the other.
+   */
+  hookAccounts?: AccountMeta[];
 }): TransactionInstruction {
   const programId = a.programId ?? DEEP_AMM_PROGRAM_ID;
   const p = a.poolState;
@@ -512,6 +522,7 @@ export function deepAmmCollectProtocolFeeToVaultIx(a: {
       rw(r1),
       ro(TOKEN_PROGRAM_ID),
       ro(TOKEN_2022_PROGRAM_ID),
+      ...(a.hookAccounts ?? []),
     ],
     data: Buffer.from(discriminator("global", "collect_protocol_fee_to_vault")),
   });

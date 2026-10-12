@@ -844,6 +844,37 @@ export interface SplitterStatus {
     /** Latest distributions, newest first (indexed RevenueDistributed events). */
     history: RevenueDistribution[];
 }
+/**
+ * GET /v1/splitter, the PUBLIC view of the DEEP fee vault (owner rule 2026-10-12: the builder is
+ * never listed in public). Totals and timing only, no recipient breakdown; the full
+ * SplitterStatus is served to the signed-in admin console at GET /v1/admin/splitter.
+ */
+export interface PublicSplitterStatus {
+    source: "chain";
+    cluster: string;
+    feeVault: string;
+    feeVaultWsol: string;
+    initialized: boolean;
+    vaultLamports: string;
+    vaultWsol: string;
+    pendingRevenue: string;
+    minDistributeLamports: string;
+    /** All DEEP revenue distributed so far, lamports. */
+    baseTotal: string;
+    distributions: number;
+    lastDistributeAt: number | null;
+    nextDistributionAt: string;
+    /** Latest distributions, newest first: when and how much DEEP revenue was distributed. */
+    history: {
+        signature: string;
+        index: number;
+        slot: number;
+        timestamp: number;
+        base: string;
+    }[];
+}
+/** The public projection of a SplitterStatus (no builder, no recipient breakdown). */
+export declare function toPublicSplitter(s: SplitterStatus): PublicSplitterStatus;
 /** One deep-curve `sweep_holder_fees` (HolderFeesSwept event), as indexed. */
 export interface HolderFeeSweep {
     signature: string;

@@ -13,7 +13,7 @@ import {
   NATIVE_MINT,
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
-import { PublicKey, TransactionInstruction } from "@solana/web3.js";
+import { type AccountMeta, PublicKey, TransactionInstruction } from "@solana/web3.js";
 import {
   deepSwapPoolRates,
   quoteDeepSwapExactIn as quoteV1ExactIn,
@@ -799,6 +799,11 @@ export interface CpmmSwapArgs {
   /** defaults to the payer's ATAs */
   inputTokenAccount?: PublicKey;
   outputTokenAccount?: PublicKey;
+  /**
+   * Transfer-hook accounts for a Token-2022 mint with an active hook
+   * (`resolveTransferHookAccounts`), appended last. Omit for mints without a hook.
+   */
+  hookAccounts?: AccountMeta[];
 }
 
 type CpmmSwapAccounts = Omit<CpmmSwapArgs, "amountIn" | "minimumAmountOut">;
@@ -871,6 +876,7 @@ function swapIx(
       { pubkey: inMint, isSigner: false, isWritable: false },
       { pubkey: outMint, isSigner: false, isWritable: false },
       { pubkey: p.observationKey, isSigner: false, isWritable: true },
+      ...(a.hookAccounts ?? []),
     ],
     data,
   });

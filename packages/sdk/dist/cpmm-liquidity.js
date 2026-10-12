@@ -93,6 +93,7 @@ function liquidityIx(name, a) {
     ];
     if (name === "withdraw")
         keys.push({ pubkey: MEMO_PROGRAM_ID, isSigner: false, isWritable: false });
+    keys.push(...(a.hookAccounts ?? []));
     return new TransactionInstruction({ programId: a.programId, keys, data });
 }
 /** `deposit(lp_token_amount, maximum_token_0_amount, maximum_token_1_amount)` */

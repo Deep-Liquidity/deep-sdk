@@ -6,7 +6,7 @@
  */
 import { Buffer } from "buffer";
 import { getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
-import { PublicKey, TransactionInstruction } from "@solana/web3.js";
+import { type AccountMeta, PublicKey, TransactionInstruction } from "@solana/web3.js";
 import { discriminator } from "./constants.js";
 import { cpmmAuthority, type CpmmPoolState } from "./raydium-cpmm.js";
 
@@ -61,6 +61,11 @@ export interface CpmmLiquidityArgs {
   ownerLpToken?: PublicKey;
   token0Account?: PublicKey;
   token1Account?: PublicKey;
+  /**
+   * Transfer-hook accounts for a Token-2022 mint with an active hook
+   * (`resolveTransferHookAccounts`), appended last. Omit for mints without a hook.
+   */
+  hookAccounts?: AccountMeta[];
 }
 
 function liquidityIx(name: "deposit" | "withdraw", a: CpmmLiquidityArgs): TransactionInstruction {
@@ -113,6 +118,7 @@ function liquidityIx(name: "deposit" | "withdraw", a: CpmmLiquidityArgs): Transa
   ];
   if (name === "withdraw")
     keys.push({ pubkey: MEMO_PROGRAM_ID, isSigner: false, isWritable: false });
+  keys.push(...(a.hookAccounts ?? []));
   return new TransactionInstruction({ programId: a.programId, keys, data });
 }
 

@@ -200,6 +200,7 @@ function initializeIx(a, v1) {
             ro(SYSVAR_RENT_PUBKEY),
             ...(a.supportMints ?? []).map(ro),
             ...(v1?.distributor ? [ro(v1.distributor)] : []),
+            ...(a.hookAccounts ?? []),
         ],
         data,
     });

@@ -5,7 +5,7 @@
  */
 import { Buffer } from "buffer";
 import { ASSOCIATED_TOKEN_PROGRAM_ID, createAssociatedTokenAccountIdempotentInstruction, createCloseAccountInstruction, getAssociatedTokenAddressSync, NATIVE_MINT, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, } from "@solana/spl-token";
-import { PublicKey, SystemProgram, TransactionInstruction } from "@solana/web3.js";
+import { PublicKey, SystemProgram, TransactionInstruction, } from "@solana/web3.js";
 import { DEEPSWAP_MAX_POOL_FEE_RATE, DEEPSWAP_MAX_REWARD_RATE, DEEPSWAP_V1_SCHEDULE, } from "@deepliquidity/curve-math";
 import { discriminator } from "./constants.js";
 import { distributorPda } from "./rewards.js";
@@ -384,6 +384,7 @@ export function deepAmmCollectProtocolFeeToVaultIx(a) {
             rw(r1),
             ro(TOKEN_PROGRAM_ID),
             ro(TOKEN_2022_PROGRAM_ID),
+            ...(a.hookAccounts ?? []),
         ],
         data: Buffer.from(discriminator("global", "collect_protocol_fee_to_vault")),
     });

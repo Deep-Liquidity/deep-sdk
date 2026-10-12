@@ -13,6 +13,7 @@ import {
 } from "@solana/spl-token";
 import { deepSwapRewardRateFromBps, validateDeepSwapPoolReward } from "@deepliquidity/curve-math";
 import {
+  type AccountMeta,
   PublicKey,
   SystemProgram,
   SYSVAR_RENT_PUBKEY,
@@ -98,6 +99,11 @@ export interface CpmmInitializeArgs {
    * remaining accounts; the program ignores entries that are not an initialized allow entry.
    */
   supportMints?: PublicKey[];
+  /**
+   * Transfer-hook accounts for a Token-2022 mint with an active hook
+   * (`resolveTransferHookAccounts`), appended last. Omit for mints without a hook.
+   */
+  hookAccounts?: AccountMeta[];
 }
 
 export interface CpmmInitializeAccounts {
@@ -338,6 +344,7 @@ function initializeIx(a: CpmmInitializeArgs, v1?: CpmmV1PoolTerms): TransactionI
       ro(SYSVAR_RENT_PUBKEY),
       ...(a.supportMints ?? []).map(ro),
       ...(v1?.distributor ? [ro(v1.distributor)] : []),
+      ...(a.hookAccounts ?? []),
     ],
     data,
   });

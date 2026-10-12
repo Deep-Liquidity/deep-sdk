@@ -70,6 +70,14 @@ const tx = new Transaction().add(
 // sign with the user's wallet and send
 ```
 
+## Charging your own fee
+
+DEEP has no on-chain referral share. To charge an app fee, add a SOL transfer to your own wallet
+in the same transaction as the trade: `quoteBuyWithIntegratorFee` / `quoteSellWithIntegratorFee`
+give the amounts and breakdown, `integratorFeeIx` builds the transfer (0–10%, rounded up).
+Show the fee to the user; DEEP's own fees still apply. See the integration guide, "Charging your
+own fee".
+
 ## Quick start: swap on a DeepSwap pool
 
 ```ts

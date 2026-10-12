@@ -1,4 +1,4 @@
-import { PublicKey, TransactionInstruction } from "@solana/web3.js";
+import { type AccountMeta, PublicKey, TransactionInstruction } from "@solana/web3.js";
 export * from "./cpmm-token2022.js";
 /** LP units the program keeps out of the creator's hands at pool creation (`lock_lp_amount`). */
 export declare const CPMM_LOCKED_LP = 100n;
@@ -46,6 +46,11 @@ export interface CpmmInitializeArgs {
      * remaining accounts; the program ignores entries that are not an initialized allow entry.
      */
     supportMints?: PublicKey[];
+    /**
+     * Transfer-hook accounts for a Token-2022 mint with an active hook
+     * (`resolveTransferHookAccounts`), appended last. Omit for mints without a hook.
+     */
+    hookAccounts?: AccountMeta[];
 }
 export interface CpmmInitializeAccounts {
     token0Mint: PublicKey;

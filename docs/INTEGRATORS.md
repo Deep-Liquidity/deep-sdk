@@ -592,8 +592,8 @@ Discriminator `[233, 66, 206, 184, 30, 100, 130, 85]`.
 ### RevenueDistributed (deep_curve, variable length; DEEP V1)
 
 Emitted by `distribute`. Borsh, in order: `base` u64 (new revenue this round), `retained_in` u64,
-`builder_amount` u64 (paid now), `builder_owed` u64 (still due), `builder_paid_total` u64
-(= floor(`base_total` / 10)), `base_total` u128, `wallets` Vec<pubkey>, `amounts` Vec<u64>,
+`builder_amount` u64, `builder_owed` u64, `builder_paid_total` u64 (on-chain field names),
+`base_total` u128, `wallets` Vec<pubkey>, `amounts` Vec<u64>,
 `owed` Vec<u64>, `retained` u64, `wsol_unwrapped` u64, `timestamp` i64. Decoded by
 `parseFeeEventsFromLogs` / `decodeFeeEvent` (also `SplitterUpdated`, `SplitterUpdateQueued`,
 `SplitterUpdateCancelled`, `VaultTokensWithdrawn`).
@@ -768,22 +768,11 @@ vault `8a2X…uwBVZ`, and the permissionless `distribute` splits it:
 | DEEP's half of a legacy creator fee | 500,000 / 1e6 of the creator fee     | booked as protocol fee on settlement, then as above |
 | DeepSwap create-pool fee            | 0.15 SOL per pool                    | deep-amm pays it into the vault's WSOL ATA          |
 
-```
-revenue        = new lamports in the vault (WSOL unwrapped) − rent − owed − carried dust
-base_total    += revenue
-builder        = floor(base_total × 1000 / 10000) − builder_paid_total   (exactly 10% over time)
-pool           = revenue − builder + retained
-destination_i  = floor(pool × bps_i / 10000)                             (bps sum to 10000)
-retained       = pool − Σ destination_i                                  (carried to the next round)
-```
-
-The builder wallet (`DEEP_BUILDER_WALLET`; `DEEP_BUILDER_WALLET.devnet` / `.mainnet` in
-`@deepliquidity/sdk`) and the 10% are fixed in the program; the 90% goes to the destinations in
-`SplitterConfig` (1–8 wallets; today one, the DEEP Treasury wallet).
-`distributeIx({ builder, destinations })` takes the destinations as trailing writable accounts in
-config order. Example: 12,500,000 lamports reach the vault → builder 1,250,000, destinations
-11,250,000. `GET /splitter` (DEEP API) reports the vault, totals and history.
-`sweepProtocolFeesIx(mint)` and `graduateIx(…)` take no builder account.
+Everything in the vault leaves only through the permissionless `distribute`, which pays DEEP's
+recipient accounts as fixed in the program and in `SplitterConfig`. `distributeIx(…)` from
+`@deepliquidity/sdk` assembles the accounts it needs; nothing else is required from an integrator.
+`GET /v1/splitter` (DEEP API) reports the vault, the revenue distributed and the history.
+`sweepProtocolFeesIx(mint)` and `graduateIx(…)` take no recipient account.
 
 ### Launch fee (`create_token`)
 
@@ -880,6 +869,70 @@ when the pool has `enable_creator_fee` (else 0):
 `swap_base_output(max_amount_in, amount_out)` is the exact-out variant (the required input rounds
 up). The SDK builds `swap_base_input` only; the accounts are the same 13 in the same order
 (see the IDL).
+
+### Charging your own fee (integrator fee)
+
+DEEP's programs take no referrer or partner argument: there is **no on-chain referral share**
+today. An app can still charge its own fee by adding a SOL transfer to **its own wallet** to the
+same transaction as the trade. The SDK (0.1.3+) has the helpers:
+
+| Helper                                                     | What it does                                                                                                             |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `integratorFeeLamports(sol, bps)`                          | `ceil(sol × bps / 10 000)`, integers only, rounded up; 0–1000 bps (10% cap).                                             |
+| `integratorFeeIx({ payer, feeWallet, lamports })`          | The `SystemProgram` transfer to your wallet.                                                                             |
+| `quoteBuyWithIntegratorFee(venueQuote, slippageBps, bps)`  | Buy: your fee on top of the SOL the trade spends. Returns `solTotal` and the breakdown.                                  |
+| `quoteSellWithIntegratorFee(venueQuote, slippageBps, bps)` | Sell: your fee on the quoted SOL out, taken from the guaranteed minimum (`minReceived`). Refuses when it can't cover it. |
+| `checkFeeWallet(accountInfo, lamports, rentMin)`           | Your fee wallet must be a plain wallet (system account); a new one needs the rent minimum first.                         |
+
+`venueQuote` is the curve's `quoteBuyV1` / `quoteSellV1` (@deepliquidity/curve-math) or a
+DeepSwap `quoteDeepSwapExactIn` with SOL on the input (buy) or output (sell) side. The breakdown
+gives `venueFee`, `deepFee`, `rewardFee` (read from the token's own accounts) and your
+`integratorFee`.
+
+Curve buy with a 0.5% app fee:
+
+```ts
+import { quoteBuyV1 } from "@deepliquidity/curve-math";
+import { buyIx, integratorFeeIx, quoteBuyWithIntegratorFee } from "@deepliquidity/sdk";
+
+const venue = quoteBuyV1(curveState, 1_000_000_000n, tokenFees); // 1 SOL
+const q = quoteBuyWithIntegratorFee(venue, 100 /* 1% slippage */, 50 /* 0.5% */);
+// show: q.solTotal = SOL leaving the wallet; q.deepFee, q.rewardFee, q.integratorFee
+tx.add(buyIx({ user, mint, amount: q.solIn, minOut: q.minTokensOut, deadline }));
+tx.add(integratorFeeIx({ payer: user, feeWallet: APP_FEE_WALLET, lamports: q.integratorFee }));
+```
+
+DeepSwap sell with a 0.5% app fee:
+
+```ts
+import {
+  cpmmSwapBaseInputIx,
+  integratorFeeIx,
+  quoteDeepSwapExactIn,
+  quoteSellWithIntegratorFee,
+} from "@deepliquidity/sdk";
+
+const venue = quoteDeepSwapExactIn({
+  pool,
+  poolId,
+  config,
+  inputMint: tokenMint,
+  amount: tokensIn /* … */,
+});
+const q = quoteSellWithIntegratorFee(venue, 100, 50);
+// show: q.minReceived = the least the trader gets after your fee
+tx.add(cpmmSwapBaseInputIx({ /* … */ amountIn: tokensIn, minimumAmountOut: q.minSolOut }));
+tx.add(integratorFeeIx({ payer: user, feeWallet: APP_FEE_WALLET, lamports: q.integratorFee }));
+```
+
+Rules:
+
+- **Show the fee to the user** before they sign, next to DEEP's fees.
+- **Same transaction** as the trade, so the trade and the fee succeed or fail together.
+- **DEEP's own fees still apply** in full: the program charges them as usual. Your fee is added
+  on top and goes only to your wallet; it is not part of DEEP's fees or the fee vault.
+- On a sell, the SOL arrives in the trader's wallet first; the transfer then sends your fee from
+  it, so the trader must keep enough SOL for the network fee.
 
 ### Token-2022 transfer fees and ScaledUiAmount (any-pair pools)
 

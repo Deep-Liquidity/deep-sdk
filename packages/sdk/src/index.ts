@@ -52,6 +52,8 @@ export * from "./rewards-verify.js";
 export * from "./log-truncation.js";
 export * from "./tx-frames.js";
 export * from "./tx-reconstruct.js";
+export * from "./transfer-hook.js";
+export * from "./integrator-fee.js";
 
 const enc = new TextEncoder();
 

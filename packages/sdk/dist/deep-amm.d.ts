@@ -1,4 +1,4 @@
-import { PublicKey, TransactionInstruction } from "@solana/web3.js";
+import { type AccountMeta, PublicKey, TransactionInstruction } from "@solana/web3.js";
 import { type DeepSwapFeeSchedule } from "@deepliquidity/curve-math";
 import { type CpmmPoolState } from "./raydium-cpmm.js";
 /**
@@ -244,6 +244,11 @@ export declare function deepAmmCollectProtocolFeeToVaultIx(a: {
     poolState: CollectFeePool;
     protocolOwner: PublicKey;
     programId?: PublicKey;
+    /**
+     * Transfer-hook accounts for a hooked mint. Without them deep-amm leaves that side accrued
+     * (as it does for a mint its issuer paused) and collects the other.
+     */
+    hookAccounts?: AccountMeta[];
 }): TransactionInstruction;
 /**
  * `collect_protocol_fee_to_vault`, creating the vault's ATA first for each side that has

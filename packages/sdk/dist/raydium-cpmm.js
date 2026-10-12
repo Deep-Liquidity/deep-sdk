@@ -548,6 +548,7 @@ function swapIx(a, name, arg0, arg1) {
             { pubkey: inMint, isSigner: false, isWritable: false },
             { pubkey: outMint, isSigner: false, isWritable: false },
             { pubkey: p.observationKey, isSigner: false, isWritable: true },
+            ...(a.hookAccounts ?? []),
         ],
         data,
     });

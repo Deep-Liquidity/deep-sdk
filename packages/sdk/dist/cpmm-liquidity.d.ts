@@ -1,4 +1,4 @@
-import { PublicKey, TransactionInstruction } from "@solana/web3.js";
+import { type AccountMeta, PublicKey, TransactionInstruction } from "@solana/web3.js";
 import { type CpmmPoolState } from "./raydium-cpmm.js";
 export declare const MEMO_PROGRAM_ID: PublicKey;
 /**
@@ -25,6 +25,11 @@ export interface CpmmLiquidityArgs {
     ownerLpToken?: PublicKey;
     token0Account?: PublicKey;
     token1Account?: PublicKey;
+    /**
+     * Transfer-hook accounts for a Token-2022 mint with an active hook
+     * (`resolveTransferHookAccounts`), appended last. Omit for mints without a hook.
+     */
+    hookAccounts?: AccountMeta[];
 }
 /** `deposit(lp_token_amount, maximum_token_0_amount, maximum_token_1_amount)` */
 export declare const cpmmDepositIx: (a: CpmmLiquidityArgs) => TransactionInstruction;
