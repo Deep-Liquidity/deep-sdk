@@ -381,9 +381,125 @@ Discriminator `[90, 90, 217, 147, 6, 32, 135, 4]`.
 Anchor `emit!`: a `Program data: <base64>` log line whose first 8 bytes are
 `sha256("event:<Name>")[0..8]`. Only trust lines emitted while the DEEP program is the innermost
 invoked program; `parseEventsFromLogs`, `parseFeeEventsFromLogs` and `parseAmmSwapEvents` track
-the invoke stack, so a CPI from another program cannot spoof DEEP events. Logs can be truncated
-by the runtime on very large transactions; for a full record read the transaction, or the
-accounts.
+the invoke stack, so a CPI from another program cannot spoof DEEP events.
+
+### Truncated logs: events can be missing
+
+The Solana runtime keeps about **10 kB of log text per transaction**. The first line that does
+not fit is replaced by the single line `Log truncated`, and the lines after it are dropped. A
+transaction with many instructions therefore loses its later events: a bundled launch
+(`create_token` plus several `buy`s; four buys with new token accounts are enough), many sells
+in one transaction, a `graduate` sent with other instructions (alone it logs about 7 kB, and
+`Graduated` is its last line), or a long route through several pools. The trades still happened
+and the accounts are right; only the log is short.
+
+Two things to know about the cut:
+
+- Lines **before** the marker are complete and in order. Events decoded from them are real and
+  have the same index as in a complete log.
+- After the marker the log is not a faithful record: a later line that is short enough to fit
+  the remaining budget is still written, so an event can be missing while a shorter line that
+  came after it is present. Do not number, or pair, anything found after the marker.
+
+**An indexer that only reads `Program data:` lines undercounts trades, volume and fees on such
+transactions.** The SDK gives you three levels of help:
+
+| Helper (`@deepliquidity/sdk`)                                                                                           | What it does                                                                                                                                                                             |
+| -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `logsTruncated(logs)`, `logsBeforeTruncation(logs)`, `LOG_TRUNCATED_LINE`                                      | Detect the marker; keep the reliable part of a log.                                                                                                                                      |
+| `parseEventsFromLogsChecked`, `parseFeeEventsFromLogsChecked`, `parseAmmSwapEventsChecked`                     | The log parsers, returning `{ events, truncated }` and reading only the lines before the marker. The older parsers are unchanged; they read every line and do not say if one is missing. |
+| `readCurveTransaction(tx, signature, reader)`, `readAmmTransaction(tx, signature, reader)`                     | The events of a transaction **complete even when its log was truncated**: what the log lost is rebuilt from the transaction and proved against the chain (below).                        |
+| `txFrames`, `systemLamportMove`, `tokenMove`, `lamportBalances`, `tokenBalances`, `rpcTransactionFromResponse` | The building blocks: every instruction with its call tree, the SOL and token movements it made, balances before and after.                                                               |
+
+`readCurveTransaction` and `readAmmTransaction` take the transaction as `getTransaction` returns
+it with encoding `json` (from web3.js: `rpcTransactionFromResponse(response)`) and return
+`{ status, truncated, events | swaps, reason?, checks? }`:
+
+- `complete`: the log held everything. Same result as the log parsers; nothing else is read.
+- `reconstructed`: the log was truncated. Events before the marker are returned as they were
+  logged; the missing ones are rebuilt and carry `reconstructed: true`. **Indices are the ones a
+  complete log would have given**, so `(signature, index)` stays a stable key and a transaction
+  you indexed from its log earlier can be read again to add only what is missing.
+- `unreadable`: the log was truncated and the missing events could not be rebuilt **and proved**.
+  The result holds no events at all: store nothing from that transaction and look at it by hand.
+  `reason` says why.
+
+`reader` is asked only for a truncated log: `account(address)` returns an account as it is now
+(the token's curve account, a pool and its AmmConfig), and the optional
+`previousTransaction(address, before)` returns the newest successful transaction of an address
+before a signature. The second one is needed when the truncated transaction itself does not show
+the reserves a trade started from (they are then taken from the last trade of an earlier
+transaction of that curve or pool).
+
+```ts
+import { PublicKey } from "@solana/web3.js";
+import { readCurveTransaction, rpcTransactionFromResponse } from "@deepliquidity/sdk";
+
+const res = await connection.getTransaction(signature, { maxSupportedTransactionVersion: 0 });
+const read = await readCurveTransaction(rpcTransactionFromResponse(res!), signature, {
+  account: async (address) => {
+    const a = await connection.getAccountInfo(new PublicKey(address));
+    return a ? { data: a.data, owner: a.owner.toBase58() } : null;
+  },
+});
+if (read.status === "unreadable") throw new Error(`cannot read ${signature}: ${read.reason}`);
+for (const { index, event, reconstructed } of read.events) store(signature, index, event);
+```
+
+**What is rebuilt, and from what.** "Exact" means the value is read off the transaction; "maths"
+means it is computed with the program's own integer maths (`@deepliquidity/curve-math`) from exact values
+and from terms that never change (the token's fee rates and reward model, the pool's reward
+terms).
+
+| Event field                                                                             | Source                                                                                                                                                                                                                                                              | Kind                          |
+| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| `TradeEvent.mint`, `.trader`, `.is_buy`                                                 | The `buy` / `sell` instruction: accounts 2 and 0, discriminator.                                                                                                                                                                                                    | exact                         |
+| `TradeEvent.sol_amount` (buy)                                                           | The System transfer from the buyer to the curve inside the instruction.                                                                                                                                                                                             | exact                         |
+| `TradeEvent.token_amount`                                                               | The SPL transfer between the curve vault and the trader's token account inside the instruction.                                                                                                                                                                     | exact                         |
+| `TradeEvent.sol_amount` (sell)                                                          | A sell pays by changing account balances directly: no instruction shows it. Computed from the reserves before the sell and the token amount.                                                                                                                        | maths, proved by balances     |
+| `TradeEvent.protocol_fee`, `.creator_fee`, `.holder_fee`                                | Section 7's fee formula on `sol_amount` (buy) or on the SOL leaving the reserves (sell), at the token's own rates, routed by its reward model.                                                                                                                      | maths                         |
+| `TradeEvent.*_reserves`                                                                 | The reserves before the trade (the previous event of the token: logged, rebuilt, or the last trade of an earlier transaction) plus or minus this trade.                                                                                                             | maths, chained                |
+| `TradeEvent.reward_model`                                                               | The curve account (never changes).                                                                                                                                                                                                                                  | exact                         |
+| `CurveCompleted`                                                                        | Emitted when a buy leaves no tokens on the curve; `real_sol_reserves` is that buy's.                                                                                                                                                                                | maths                         |
+| `TokenCreated.name`, `.symbol`, `.uri`, `.reward_model`, `.reward_bps`                  | The `create_token` instruction's arguments.                                                                                                                                                                                                                         | exact                         |
+| `TokenCreated.mint`, `.creator`, `.token_total_supply`, `.curve_supply`                 | Accounts 2 and 0; the `MintTo` inside the instruction; the curve account (never changes).                                                                                                                                                                           | exact                         |
+| `Graduated.lp_sol`, `.lp_tokens`, `.burned_tokens`                                      | The arguments of the pool-creating call inside `graduate`; the token `Burn` on the curve vault.                                                                                                                                                                     | exact                         |
+| `Graduated.migration_fee`                                                               | The SOL that left the curve account, less the two sweeps, less `lp_sol`.                                                                                                                                                                                            | balances, proved by the maths |
+| `ProtocolFeesSwept.amount`, `HolderFeesSwept.amount` (emitted by `graduate`)            | What the fee vault and the holder vault gained beyond every System transfer.                                                                                                                                                                                        | balances                      |
+| `timestamp` (`TradeEvent`, `Graduated`)                                                 | Another event of the same transaction that is in the log (the program's clock). If none is: the block's time, which is that clock or **one second more** (the clock is the block's time on some clusters and the parent block's on others). `timestampSource` says. | exact, or within 1 s          |
+| `SwapEvent.pool_id`, `.input_mint`, `.output_mint`, `.base_input`                       | The swap instruction: accounts 3, 10, 11, discriminator.                                                                                                                                                                                                            | exact                         |
+| `SwapEvent.input_amount`, `.output_amount`                                              | The two token transfers inside the instruction.                                                                                                                                                                                                                     | exact                         |
+| `SwapEvent.input_vault_before`, `.output_vault_before`                                  | The vault's balance at that point of the transaction (its balance before, plus the earlier transfers) less the pool's accrued fees (from the pool's previous swap event, less what fee collections since took out).                                                 | exact balance, chained fees   |
+| `SwapEvent.trade_fee`, `.creator_fee`, and `SwapFeesV1` (`lp_fee`, `protocol_fee`, ...) | Section 7's V1 swap maths at the pool's reward terms and its AmmConfig's rates **as they are now**. The total is proved (below); the split between LP and DEEP is right unless the config's rates were changed since the transaction.                               | maths                         |
+
+`LaunchFeeCharged` is known to have been emitted (the launch-fee transfer is in the transaction)
+but its content quotes an oracle price that is not on chain any more: it is returned with
+`event: null` so that the numbering of the fee events after it stays right.
+
+**The proofs.** A rebuilt event is returned only if all of these hold, otherwise the transaction
+is `unreadable`:
+
+1. _The maths reproduces the transfers._ A buy's computed SOL charge and token output must equal
+   the System and SPL transfers the instruction made, to the unit. A swap's computed input and
+   output must equal its two token transfers. A graduation's allocation, computed from the SOL
+   that left the curve, must give the pool's two seed amounts and the burn exactly.
+2. _The balances add up._ Every lamport the curve account gained or lost in the transaction must
+   be a System transfer or belong to an event (a sell's payout, a claim, a sweep, a graduation);
+   every token the curve vault gained or lost must belong to an event; a pool vault's transfers
+   must land on its recorded balance.
+3. _The logged events agree._ Every trade of the same token that the log does show is rebuilt
+   too and must come out identical, field for field.
+
+**Not rebuilt (the transaction is `unreadable` if the log lost them):** events of
+`claim_creator_fees`, `sweep_protocol_fees`, `sweep_holder_fees`, `distribute` and the admin
+instructions; swaps of legacy-fee pools (devnet only); swaps of a pool whose token has a
+Token-2022 transfer fee; a sell or a swap whose starting reserves no earlier transaction shows
+when no `previousTransaction` reader was given. These are single-instruction transactions in
+practice, far below the log limit.
+
+If you do not use the SDK, the rule is the same: detect `Log truncated`, never treat such a
+transaction as fully read, and take trades from the instructions and their inner token and SOL
+transfers (or from balance changes), not from the log.
 
 ### TokenCreated (deep_curve, variable bytes)
 

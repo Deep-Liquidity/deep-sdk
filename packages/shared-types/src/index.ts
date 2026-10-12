@@ -407,7 +407,10 @@ export interface TokenStats {
   holders: {
     /** Token accounts with a non-zero balance; null when the RPC refused the query. */
     count: number | null;
-    /** Distinct owners with a non-zero balance. */
+    /**
+     * Distinct owners with a non-zero balance, NOT counting the bonding curve's vault or a
+     * DeepSwap pool's vault (they appear in `top` with a label). This is the holder count.
+     */
     owners: number | null;
     top: TokenHolder[] | null;
     asOf: number;
@@ -930,4 +933,20 @@ export interface VanityMint {
 /** `vanity` is null when no keypair is ready: the launch then uses an ordinary random mint. */
 export interface VanityMintResponse {
   vanity: VanityMint | null;
+}
+
+/**
+ * DEEP's own token per cluster (owner decision 2026-10-12: the mainnet DEEP token, mint
+ * `DpyVL7crxmDAgKuCZ6heGVkPzGAWyx7fkRDRrASadeep`). The app and the bots label it "Official DEEP
+ * token"; nothing else is ever labelled official. Devnet has none.
+ */
+export const OFFICIAL_TOKEN_MINTS: Readonly<Record<"mainnet-beta" | "devnet", readonly string[]>> =
+  {
+    "mainnet-beta": ["DpyVL7crxmDAgKuCZ6heGVkPzGAWyx7fkRDRrASadeep"],
+    devnet: [],
+  };
+
+export function isOfficialToken(cluster: string, mint: string): boolean {
+  const list = OFFICIAL_TOKEN_MINTS[cluster as keyof typeof OFFICIAL_TOKEN_MINTS];
+  return !!list && list.includes(mint);
 }

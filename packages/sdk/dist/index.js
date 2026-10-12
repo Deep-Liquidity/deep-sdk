@@ -29,6 +29,9 @@ export * from "./splitter.js";
 export * from "./merkle.js";
 export * from "./rewards.js";
 export * from "./rewards-verify.js";
+export * from "./log-truncation.js";
+export * from "./tx-frames.js";
+export * from "./tx-reconstruct.js";
 const enc = new TextEncoder();
 // ───────────── PDAs ─────────────
 export function configPda(programId = DEEP_CURVE_PROGRAM_ID) {

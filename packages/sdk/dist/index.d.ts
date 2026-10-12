@@ -20,6 +20,9 @@ export * from "./splitter.js";
 export * from "./merkle.js";
 export * from "./rewards.js";
 export * from "./rewards-verify.js";
+export * from "./log-truncation.js";
+export * from "./tx-frames.js";
+export * from "./tx-reconstruct.js";
 export declare function configPda(programId?: PublicKey): PublicKey;
 /** Program-owned PDA that accrues protocol trade fees and migration fees. */
 export declare function treasuryPda(programId?: PublicKey): PublicKey;

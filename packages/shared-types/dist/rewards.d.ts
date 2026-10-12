@@ -101,6 +101,24 @@ export interface WalletRewardsResponse {
     rewards: WalletRewardView[];
     source: "chain" | "mock";
 }
+/** One token in GET /v1/rewards/wallet/:wallet (only tokens with a leaf in an active round). */
+/**
+ * One (mint, distributor) leaf of a wallet on the active root (GET /v1/rewards/wallet/:wallet).
+ * symbol/name/image come from the indexer (null for a token it does not know); claimed and
+ * claimable are null when the chain read failed, as on the per-mint route.
+ */
+export interface WalletTokenRewardView extends WalletRewardView {
+    mint: string;
+    symbol: string | null;
+    name: string | null;
+    image: string | null;
+}
+/** GET /v1/rewards/wallet/:wallet: the wallet's Holder Rewards across every token. */
+export interface WalletAllRewardsResponse {
+    wallet: string;
+    rewards: WalletTokenRewardView[];
+    source: "chain";
+}
 /**
  * Holder Rewards on mainnet: the owner's recorded approval after their legal check
  * (docs/LEGAL_REVIEW.md "Owner decisions recorded"). The API refuses HOLDER_REWARDS=on on a

@@ -31,6 +31,11 @@ export interface TokenCreatedEvent {
    * (0 for Standard). Absent on events emitted before the program carried it.
    */
   rewardBps?: number;
+  /**
+   * Set by a reader that rebuilt this event from the transaction's instructions and balances
+   * because the runtime had truncated the log (`readCurveTransaction`). Never on chain.
+   */
+  reconstructed?: true;
 }
 
 export interface TradeEventData {
@@ -55,12 +60,22 @@ export interface TradeEventData {
    * Always set by the decoder (0n for pre-Phase-2 events).
    */
   holderFee?: bigint;
+  /**
+   * Set by a reader that rebuilt this event from the transaction's instructions and balances
+   * because the runtime had truncated the log (`readCurveTransaction`). Never on chain.
+   */
+  reconstructed?: true;
 }
 
 export interface CurveCompletedEvent {
   name: "CurveCompleted";
   mint: string;
   realSolReserves: bigint;
+  /**
+   * Set by a reader that rebuilt this event from the transaction's instructions and balances
+   * because the runtime had truncated the log (`readCurveTransaction`). Never on chain.
+   */
+  reconstructed?: true;
 }
 
 export interface CreatorFeesClaimedEvent {
@@ -78,6 +93,11 @@ export interface GraduatedEvent {
   burnedTokens: bigint;
   migrationFee: bigint;
   timestamp: bigint;
+  /**
+   * Set by a reader that rebuilt this event from the transaction's instructions and balances
+   * because the runtime had truncated the log (`readCurveTransaction`). Never on chain.
+   */
+  reconstructed?: true;
 }
 
 export interface PauseChangedEvent {
@@ -163,6 +183,11 @@ export interface PoolSwapEvent {
   tokenReservesAfter: bigint;
   /** unix seconds (block time) */
   timestamp: bigint;
+  /**
+   * Set by a reader that rebuilt the swap from the transaction's instructions and balances
+   * because the runtime had truncated the log (`readAmmTransaction`). Never on chain.
+   */
+  reconstructed?: true;
 }
 
 export type DeepEvent =
